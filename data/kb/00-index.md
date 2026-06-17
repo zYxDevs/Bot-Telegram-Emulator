@@ -3,6 +3,13 @@
 Curated by Noysz/Fourfect. Verified dari testing langsung + source resmi.
 File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 
+## Konsep dasar (BACA KALAU USER TANYA "kenapa")
+- `architecture-layers.md` — 7-layer stack Wine/Box64/FEX/DXVK/Driver/Kernel/HW + 4 hambatan
+  kompatibilitas (instruction, Win API, Vulkan ext, anti-cheat) + diagnostic flowchart crash.
+  **PAKE FILE INI** kalau user nanya: "kenapa HP gw kuat tapi game X ga jalan", "bottleneck di mana",
+  "kenapa ganti DLL bisa kerja", "GPU spoofing nyentuh apa", "Rambooster placebo bukan", "bedanya
+  Wine sama emulator apa", "anti-cheat kenapa ga bisa".
+
 ## Box64 (CPU translator x86→ARM64, dipake Winlator-type)
 - `box64-envs.md` — BOX64_DYNAREC_*, BOX64_MMAP32, BOX64_AVX, BOX64_NOSIGSEGV, dll.
 
