@@ -8,6 +8,7 @@ File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 
 ## FEXCore (CPU translator x86→ARM64, dipake GameHub/BannerHub/Mobox)
 - `fex-translation.md` — FEX_TSOENABLED, VectorTSO, HideHypervisorBit, per-game-engine matrix.
+- `fex-extreme-params.md` — FULL matrix Custom/Extreme params (X87ReducedPrecision, MaxInst, SmallTSCScale, MemcpySetTSO, HalfBarrierTSO, VolatileMetadata, MonoHacks, SMCChecks) + preset COMPATIBILITY/BALANCED/PERFORMANCE.
 
 ## DXVK / DXGI / D3D9-11 (Vulkan translation layer)
 - `dxvk-conf.md` — knob dxvk.conf critical (maxAvailableMemory, deferSurfaceCreation, async, dll).
@@ -24,8 +25,11 @@ File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 - `turnip-per-adreno.md` — repo Turnip driver per chipset Adreno.
 
 ## Per-game tweak
-- `per-game.md` — GTA V, RE4 Remake, SH2/3 classic, Splinter Cell Blacklist, Payday 2,
-  Sleeping Dogs DE, Tomb Raider 2013, Halo CE, dll.
+- `per-game.md` — GTA V (3-tier per chipset), RE4 Remake, DiRT 3, Grid 2, SH2/3 classic,
+  Splinter Cell Blacklist, Payday 2, Sleeping Dogs DE, Tomb Raider 2013, Halo CE, dll.
+- `per-game-config-files.md` — PATH + KEY spesifik file config game di luar emulator
+  (hardware_settings_config.xml DiRT 3, settings.xml GTA V, registry Tomb Raider 2013, dll).
+  **WAJIB cek file ini sebelum jawab "edit config game"**.
 
 ## Chipset-specific
 - `chipset-affinity.md` — CORE_AFFINITY_MASK per chipset (Helio G99, Dim 8400, SD 8 Elite, dll).
