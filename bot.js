@@ -59,6 +59,13 @@ const rateWarnedAt = new Map();
 const chatHistory = {};
 const lastActive = {};
 
+// Stats in-memory (reset tiap restart). Kunci pake userId krn lebih stabil dari chatId.
+// Buffer 7d, otomatis di-prune di /stats.
+const STATS_TTL = 7 * 24 * 60 * 60 * 1000;
+const userStats = new Map(); // userId -> { name, firstSeen, lastSeen, count, lastChatType, lastChatId }
+const msgLog = []; // [{ ts, userId }] — buat hitung unique per window
+const BOT_START_TS = Date.now();
+
 // =============================================================================
 //  PERSISTENCE — load saat boot, save atomic + debounce
 // =============================================================================
@@ -302,6 +309,70 @@ function displayName(from) {
     if (!from) return 'Anonim';
     const nm = [from.first_name, from.last_name].filter(Boolean).join(' ');
     return nm || (from.username ? '@' + from.username : 'Anonim');
+}
+
+function fmtDuration(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}d`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}j ${m % 60}m`;
+    return `${Math.floor(h / 24)}h ${h % 24}j`;
+}
+
+function buildStatsReport() {
+    const now = Date.now();
+    const windows = [
+        { label: '1m',  ms: 60 * 1000 },
+        { label: '10m', ms: 10 * 60 * 1000 },
+        { label: '1j',  ms: 60 * 60 * 1000 },
+        { label: '24j', ms: 24 * 60 * 60 * 1000 }
+    ];
+    const lines = ['📊 *Statistik Bot* (sejak restart terakhir)\n'];
+    lines.push(`⏱ Uptime: *${fmtDuration(now - BOT_START_TS)}*`);
+    lines.push(`👥 Total user kenal: *${userStats.size}*`);
+    lines.push(`💬 Total pesan: *${msgLog.length}* (7 hari terakhir)\n`);
+
+    lines.push('*Aktif per window:*');
+    for (const w of windows) {
+        const cutoff = now - w.ms;
+        const users = new Set();
+        let msgs = 0;
+        for (let i = msgLog.length - 1; i >= 0; i--) {
+            if (msgLog[i].ts < cutoff) break;
+            users.add(msgLog[i].userId);
+            msgs++;
+        }
+        lines.push(`• ${w.label.padEnd(4)}: *${users.size}* user, *${msgs}* msg`);
+    }
+
+    // Top 5 user paling sering
+    const top = [...userStats.entries()]
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 5);
+    if (top.length) {
+        lines.push('\n*Top 5 user:*');
+        top.forEach(([uid, r], i) => {
+            const ago = fmtDuration(now - r.lastSeen);
+            lines.push(`${i + 1}. ${r.name} \`(${uid})\` — *${r.count}* msg, last ${ago} lalu`);
+        });
+    }
+
+    // 5 user paling baru aktif
+    const recent = [...userStats.entries()]
+        .sort((a, b) => b[1].lastSeen - a[1].lastSeen)
+        .slice(0, 5);
+    if (recent.length) {
+        lines.push('\n*Last seen:*');
+        recent.forEach(([uid, r]) => {
+            const ago = fmtDuration(now - r.lastSeen);
+            const tag = r.lastChatType === 'private' ? '🔒' : '👥';
+            lines.push(`${tag} ${r.name} — ${ago} lalu (${r.count} msg)`);
+        });
+    }
+
+    return lines.join('\n');
 }
 
 // =============================================================================
@@ -635,7 +706,7 @@ bot.on('message', async (msg) => {
     if (cmd === '/start') {
         chatHistory[key] = [{ role: 'system', content: SYSTEM_PROMPT }];
         scheduleSave();
-        sendSafe(chatId, '🤖 *COPUX-FourFect* aktif!\n\nGw asisten pakar emulator PC-di-Android (Winlator & semua fork, GameHub, Mobox, Box64, DXVK, Turnip, dll). Buat pertanyaan teknis, gw bisa *deep search* ke web (pcgamingwiki, protondb, github dxvk/driver) biar jawabannya akurat & ada sumbernya.\n\n📸 Bisa kirim *screenshot* error/setting juga — nanti gw bedah langsung dari gambarnya.\n\n*Perintah:*\n/cari <kata kunci> - paksa cari di web\n/reset - bersihin memori obrolan\n/addfix - sumbang fix ke Community KB\n\nDi grup: panggil gw pake @' + (BOT_USERNAME || 'namabot') + ' atau reply pesan gw.\n\n———\n💡 Bot ini jalan pakai kredit dari freemodel. Kalau ngerasa kebantu & mau dukung biar tetap nyala, daftar lewat link gw (gratis, lu juga dapet kreditnya):\nhttps://freemodel.dev/invite/FRE-681bce55');
+        sendSafe(chatId, '🤖 *COPUX-FourFect* aktif!\n\nGw asisten pakar emulator PC-di-Android (Winlator & semua fork, GameHub, Mobox, Box64, DXVK, Turnip, dll). Buat pertanyaan teknis, gw bisa *deep search* ke web (pcgamingwiki, protondb, github dxvk/driver) biar jawabannya akurat & ada sumbernya.\n\n📸 Bisa kirim *screenshot* error/setting juga — nanti gw bedah langsung dari gambarnya.\n\n*Perintah:*\n/cari <kata kunci> - paksa cari di web\n/reset - bersihin memori obrolan\n/addfix - sumbang fix ke Community KB\n/stats - (admin) statistik bot\n\nDi grup: panggil gw pake @' + (BOT_USERNAME || 'namabot') + ' atau reply pesan gw.\n\n———\n💡 Bot ini jalan pakai kredit dari freemodel. Kalau ngerasa kebantu & mau dukung biar tetap nyala, daftar lewat link gw (gratis, lu juga dapet kreditnya):\nhttps://freemodel.dev/invite/FRE-681bce55');
         return;
     }
     if (cmd === '/reset') {
@@ -655,6 +726,11 @@ bot.on('message', async (msg) => {
             content: body
         });
         sendSafe(chatId, '✅ Fix lu udah masuk antrian review admin. Makasih kontribusinya bro! 🙌');
+        return;
+    }
+    if (cmd === '/stats') {
+        if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
+        sendSafe(chatId, buildStatsReport());
         return;
     }
     if (cmd && cmd !== '/cari') return;
@@ -686,6 +762,22 @@ bot.on('message', async (msg) => {
         const q = text.replace(/^\/cari(@\S+)?\s*/i, '').trim();
         if (!q) { sendSafe(chatId, 'Format: */cari <kata kunci>*\nContoh: `/cari setting dxvk Elden Ring Adreno 730`'); return; }
         promptText = '[WAJIB pakai web_search lalu web_fetch sumbernya sebelum menjawab] ' + q;
+    }
+
+    // STATS — counted setelah filter grup+rate, jadi cuma user "beneran kirim ke bot"
+    if (userId) {
+        const now = Date.now();
+        const rec = userStats.get(userId) || { name: '', firstSeen: now, lastSeen: now, count: 0, lastChatType: msg.chat.type, lastChatId: chatId };
+        rec.name = displayName(msg.from) || rec.name;
+        rec.lastSeen = now;
+        rec.count++;
+        rec.lastChatType = msg.chat.type;
+        rec.lastChatId = chatId;
+        userStats.set(userId, rec);
+        msgLog.push({ ts: now, userId });
+        // Prune log > 7d
+        const cutoff = now - STATS_TTL;
+        while (msgLog.length && msgLog[0].ts < cutoff) msgLog.shift();
     }
 
     bot.sendChatAction(chatId, 'typing');
