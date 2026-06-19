@@ -44,6 +44,30 @@ File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 
 ## Wine / WINE env
 - `wine-envs.md` — WINEDEBUG, WINEESYNC, WINEFSYNC, WINEDLLOVERRIDES, WINE_LARGE_ADDRESS_AWARE.
+- `wine-evolution.md` — Wine 9.0/10.0/11.0 inflection point yg relevan Winlator/GameHub
+  (WoW64, ARM64EC, FFmpeg mfplat backend, Win10 default prefix, unified \`wine\` 11.0).
+  User MOBILE ga bisa upgrade Wine standalone — saran = ganti fork emulator.
+  Desktop-only stuff (NTSync/Wayland/EGL) di-skip karena ga relevan Android.
+  **PAKE FILE INI** kalau user nanya: "wine64 not found", "video cutscene crash",
+  "Wine versi mana di Winlator", "kontroler DInput action map", "32-bit installer issue".
+- `wine-debug.md` — WINEDEBUG channels + workflow per simptom buat Winlator/GameHub log.
+  Reality check: mobile user sering ga punya shell akses → tanya cara akses log dulu.
+  Channel mobile-friendly (+seh,+module,+loaddll), JANGAN +relay/+all (GB+ log).
+  Exception code reference (0xC0000005 AV, 0xC0000142 DLL init, 0xC0000094 div0, dst).
+  **PAKE FILE INI** kalau user attach log Wine, crash code hex, channel debug query.
+- `winedllovr-per-game.md` — WINEDLLOVERRIDES syntax + apply path Winlator (Container
+  Settings → Environment Variables, BUKAN shortcut launch arg). Pattern proven
+  (dinput8=n,b ASI/SKSE/F4SE, DWrite=n,b BG3SE, version=n,b GTAV, mscoree= cegah popup
+  install Wine Mono). Anti-pattern core DLL override + DXVK conflict.
+  **PAKE FILE INI** kalau user nanya: "DLL override apa", "mod loader Winlator", "SKSE",
+  "BG3SE crash", "ReShade Winlator".
+
+## Proton — klarifikasi context (NOT mobile-runnable)
+- `proton-family.md` — Singkat: Proton ≠ Winlator. Mobile pake upstream Wine + Box64/FEX,
+  Proton hanya Steam Deck/Linux desktop. Mapping equivalent (Proton FSR → Winlator
+  driver picker, protonfixes → manual DLL override, dst). 5 bot-rules clarification.
+  **PAKE FILE INI** kalau user nanya: "Proton di Winlator gimana", "install Proton mobile",
+  "Steam Deck game di HP", "GE-Proton mobile feature".
 
 ## GPU / Driver
 - `gpu-rules.md` — Mali vs Adreno hard rule, GPU spoofing, BCn/ClipDistance limitation.
