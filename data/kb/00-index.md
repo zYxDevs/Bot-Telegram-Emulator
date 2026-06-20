@@ -42,6 +42,16 @@ File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 ## VKD3D-Proton (DX12 → Vulkan)
 - `vkd3d.md` — VKD3D_CONFIG, feature level, RE4 setup.
 
+## DXWrapper (elishacloud, drop-in DLL — beda dari Winlator UI dropdown)
+- `dxwrapper.md` — Disambiguasi WAJIB: Winlator UI "DX Wrapper" dropdown ≠ elishacloud DXWrapper
+  project standalone. Killer use: DDraw 1-7 game di Mali (Diablo 1, AoE 2, HoMM 3, etc.) lewat
+  Dd7to9 stacked DXVK-Sarek (ddraw → d3d9 → Vulkan, lebih bagus dari CNC-DDraw OpenGL path).
+  Setting matrix mobile-relevant + env var DXWRAPPER_* alternative (mobile-friendly).
+  Anti-stale: WriteMemory tolak (Wine memory layout beda), d3d8to9 redundant (DXVK 2.4+ d8vk merged),
+  WinVersionLie tolak (pake winecfg), ASI plugin warning (Win-only).
+  **PAKE FILE INI** kalau user nanya: "DXWrapper apa", "ddraw game lama", "Diablo 1 mobile",
+  "AoE 2 Winlator", "Dd7to9", "ddraw.dll ga ke-load", "C&C vs ddraw fork".
+
 ## Wine / WINE env
 - `wine-envs.md` — WINEDEBUG, WINEESYNC, WINEFSYNC, WINEDLLOVERRIDES, WINE_LARGE_ADDRESS_AWARE.
 - `wine-evolution.md` — Wine 9.0/10.0/11.0 inflection point yg relevan Winlator/GameHub

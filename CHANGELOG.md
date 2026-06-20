@@ -4,6 +4,35 @@ Format: keep-a-changelog ringan. Tanggal absolut. Versi major = kapabilitas baru
 
 ---
 
+## [Unreleased] — 2026-06-20
+
+### KB diperluas — DXWrapper (elishacloud) disambiguasi + stacking pattern
+
+Deep-dive elishacloud/dxwrapper. Audit Winlator/GameHub relevance — DXWrapper umumnya disalahpahami sebagai "Winlator DX Wrapper dropdown" padahal ini project standalone yang complementary, bukan replacement.
+
+**Added:**
+- `data/kb/dxwrapper.md` — Disambiguasi WAJIB: Winlator UI dropdown ≠ elishacloud project. Killer use case = DDraw 1-7 era game (Diablo 1, AoE 2, HoMM 3, Fallout 1-2, StarCraft) di Mali, lewat Dd7to9 stacked DXVK-Sarek (ddraw → d3d9 → Vulkan, lebih bagus dari CNC-DDraw OpenGL path). Setting matrix mobile-relevant + env var `DXWRAPPER_*` alternative buat user yang susah edit INI di shared storage Android. Quick reference matrix kapan pake apa untuk legacy DirectX.
+
+**Changed:**
+- `bot.js` SYSTEM_PROMPT: section baru "DXWRAPPER (disambiguasi WAJIB dulu)" — bot tanya klarifikasi dulu sebelum jawab. Update VERSI MATTER tambah stale: "DXWrapper d3d8to9" → redundant, DXVK 2.4+ d8vk merged.
+- `data/kb/00-index.md` — entry baru dengan trigger keyword (ddraw game lama, Diablo 1 mobile, Dd7to9, C&C vs ddraw fork, dst).
+
+**Anti-stale rules baru di bot:**
+- User minta `[WriteMemory]` hot-patch → TOLAK (Wine memory layout beda)
+- User minta `WinVersionLie` → arahin winecfg
+- User minta ASI plugin loader di Wine → WARNING Win-only
+- User minta DXWrapper d3d8to9 → arahin DXVK 2.4+
+- User minta hook System32 → TOLAK (upstream sendiri bilang jangan)
+
+**Skipped (desktop-only / risky di Wine):**
+- WriteMemory hot-patching
+- AppCompatData LockEmulation/BltEmulation (Windows DDraw HEL specific)
+- ASI plugin loader (Win-only mods)
+- Mini dump file creation
+- WinXP binaries asset
+
+---
+
 ## [Unreleased] — 2026-06-19
 
 ### KB diperluas — Wine / Proton context (Android-only fokus)
