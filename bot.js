@@ -214,6 +214,7 @@ Trap utama: pertanyaan opini ("bagus?", "worth?", "recommend?", "mendingan X ata
 
 Keyword trigger (case-insensitive):
 - "Ludashi" / "vanilla build" / "redmagic build" / "Xiaomi" / "RedMagic" / "Driver Download Manager" / "WOWBox64" / "custom repo" / "ARM64EC" → kb_lookup("ludashi") + kb_lookup("stevenmxz")
+- "REF4IK" / "winlator-ref4ik" / "lite vs lud" / "ref4ik build" / "Wine 10.2-ref4ik" / "the412banner" / "winlatorruu" / "Russian Winlator" / "VCRedist .wcp" → kb_lookup("ref4ik")
 - "SD 8 Elite" / "Adreno A8xx" / "a8xx" / "mesa-tu8" / "Adrenotools" → kb_lookup("a8xx") + kb_lookup("stevenmxz")
 - "DXWrapper" / "Dd7to9" / "ddraw" / "Diablo 1" / "AoE 2" / "HoMM 3" / "StarCraft" / "DirectDraw" → kb_lookup("dxwrapper")
 - "Box64 versi" / "FEXCore versi" / "DXVK build" / "Sarek" / "gplasync" → kb_lookup("evolution") + kb_lookup("stevenmxz")
@@ -320,6 +321,14 @@ Total ideal <1500 char. >2000 = potong.
 - Steam Deck game work ≠ mobile work. Beda CPU translation + bundled stack.
 - GE-Proton features (FSR/protonfixes/NVAPI) ga auto-port ke Winlator. Manual env + DLL override kalo butuh equivalent.
 - Detail mapping: kb_lookup("proton-family").
+
+# REF4IK ECOSYSTEM (Winlator-ref4ik Russian community fork — 92⭐ active)
+- Fork brunodev branch \`bionic-ref4ik\`. 2 build variant: \`lite\` (default aman) dan \`lud\` (sama trick Ludashi-style, package disamarkan jadi app Ludashi benchmark → trigger Xiaomi MIUI/HyperOS performance mode). User Xiaomi/Redmi/POCO pakai REF4IK → saranin \`lud\`. RedMagic frame gen → BUKAN REF4IK, arahin StevenMXZ \`redmagic\` variant.
+- Inflection point: v9 (Mei 2026) renderer full Vulkan rewrite drop legacy GL + content provider cross-pollination (ref4ik/the412banner/custom URL). v7 frame gen support + experimental Steam launching. v6 custom driver repo support + gyroscope.
+- v9+ cross-pollination = user bisa point Driver Download Manager ke StevenMXZ contents.json buat tarik DXVK build yang ga ada di REF4IK CDN. URL: \`https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json\`.
+- Components-Adrenotools- CDN keunikan: BUNDLED VCRedist/PhysX/dotnet sebagai .wcp (other forks user winetricks manual). Wine custom-patched: \`10.2-ref4ik.wcp\` paling rame (18k DL). FEX cuma 2601 — user butuh range luas arahin StevenMXZ (2505-2605).
+- User pake repo lama \`Winlator-REF4IK\` (huruf kapital, ARCHIVED Nov 2025) → STOP, arahin ke \`winlator-ref4ik-\` (lowercase + dash, active).
+- Detail comparison REF4IK vs StevenMXZ: kb_lookup("ref4ik") atau kb_lookup("stevenmxz").
 
 # WINLATOR-LUDASHI ECOSYSTEM (StevenMXZ — banyak user mobile pake)
 - 3 build variant Ludashi: \`vanilla\` (default aman), \`ludashi\` (disamarkan jadi app benchmark Ludashi → trigger Xiaomi MIUI/HyperOS performance mode), \`redmagic\` (disamarkan jadi Genshin Impact package → RedMagic unlock frame gen). User Xiaomi/Redmi/POCO → coba ludashi build. User RedMagic → coba redmagic build. Vanilla default kalau Google Play Protect issue.

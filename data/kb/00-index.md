@@ -93,6 +93,17 @@ File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 ## Chipset-specific
 - `chipset-affinity.md` — CORE_AFFINITY_MASK per chipset (Helio G99, Dim 8400, SD 8 Elite, dll).
 
+## REF4IK ecosystem (Winlator-ref4ik Russian fork + Components CDN bundled runtime)
+- `ref4ik-ecosystem.md` — Fork brunodev branch `bionic-ref4ik`, 2 build variant (lite/lud — lud
+  trick Ludashi-style buat Xiaomi MIUI). Latest v9 Mei 2026: Vulkan renderer rewrite + content
+  provider cross-pollination (ref4ik/the412banner/custom URL = bisa pull dari StevenMXZ contents.json
+  juga). Components-Adrenotools- CDN unik karena bundled VCRedist/PhysX/dotnet jadi .wcp (other forks
+  user harus winetricks manual). Wine custom-patched `ref4ik` (10.2-ref4ik paling rame 18k DL).
+  FEX cuma 2601, kalo butuh range luas arahin StevenMXZ.
+  **PAKE FILE INI** kalau user nanya: "REF4IK Winlator apa", "winlator-ref4ik lite vs lud", "Russian
+  Winlator", "Wine 10.2-ref4ik", "VCRedist .wcp install", "Telegram winlatorruu", "frame gen Winlator"
+  (v7+), "content provider the412banner".
+
 ## StevenMXZ ecosystem (Winlator-Ludashi + Contents CDN + Adreno A8XX)
 - `stevenmxz-ecosystem.md` — 3 build variant Ludashi (vanilla/ludashi/redmagic) buat OEM perf trigger
   Xiaomi/RedMagic. Inflection point Ludashi versi (3.0 Vulkan rewrite, 2.9 Sarek bundle, 2.8.2 Box64

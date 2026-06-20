@@ -4,6 +4,28 @@ Format: keep-a-changelog ringan. Tanggal absolut. Versi major = kapabilitas baru
 
 ---
 
+## [Unreleased] — 2026-06-20 (malam)
+
+### KB diperluas — REF4IK ecosystem (Russian Winlator fork + bundled runtime CDN)
+
+Deep-dive 8 repo REF4IK. Core: winlator-ref4ik- (92⭐ active fork), Components-Adrenotools- (CDN bundled VCRedist/PhysX/dotnet sebagai .wcp = unique convenience), GameNative-Mod. Russian community via Telegram winlatorruu.
+
+**Added:**
+- `data/kb/ref4ik-ecosystem.md` — Fork brunodev branch `bionic-ref4ik`. 2 build variant (lite/lud — lud trick Ludashi-style buat Xiaomi). Inflection: v9 Vulkan rewrite + content provider cross-pollination (bisa pull dari StevenMXZ CDN via custom URL), v7 frame gen + experimental Steam launching, v6 custom driver repo. Comparison REF4IK vs StevenMXZ side-by-side (decision tree per use case). Anti-stale: jangan pake repo lama `Winlator-REF4IK` (archived Nov 2025).
+
+**Changed:**
+- `bot.js` SYSTEM_PROMPT: section baru "REF4IK ECOSYSTEM" + tambah REF4IK trigger keyword di KB-FIRST rule (REF4IK / winlator-ref4ik / lite vs lud / Wine 10.2-ref4ik / the412banner / winlatorruu / Russian Winlator / VCRedist .wcp).
+- `data/kb/00-index.md` — entry + trigger keyword.
+
+**Skipped:**
+- REF4IK/update-url-mod- (config tweak only, ga substantif)
+- REF4IK profile page README
+- REF4IK/Winlator-REF4IK (archived Nov 2025 — superseded by lowercase)
+- REF4IK/Bionic-Drivers- (archived Jul 2025)
+- REF4IK/Components- (archived Jun 2025)
+
+---
+
 ## [Unreleased] — 2026-06-20 (sore)
 
 ### KB diperluas — StevenMXZ ecosystem (Winlator-Ludashi + Contents CDN + A8XX stack)
