@@ -850,6 +850,18 @@ function loadKB() {
     }
 }
 
+// Confidence tag priority — lower number = higher priority = surfaced FIRST.
+// VERIFIED (community-tested) menang dari REVEALED PREFERENCE (community signal)
+// yang menang dari THEORETICAL (interpolasi spec, belum ke-bench).
+// Section tanpa tag = netral (priority tengah, biar ga tenggelam tapi ga ngalahin VERIFIED).
+function _confidencePriority(text) {
+    const t = (text || '').toUpperCase();
+    if (t.includes('[VERIFIED')) return 0;
+    if (t.includes('[REVEALED PREFERENCE') || t.includes('[REVEALED PREF')) return 1;
+    if (t.includes('[THEORETICAL')) return 3;
+    return 2; // untagged netral
+}
+
 function kbLookup(topic) {
     if (KB_CACHE == null) loadKB();
     const q = String(topic || '').toLowerCase().trim();
@@ -870,13 +882,24 @@ function kbLookup(topic) {
     if (!hits.length) {
         return `kb_lookup: ga ada entry cocok buat "${topic}". Fallback ke web_search.`;
     }
-    // Limit total ~3KB biar context ga overflow.
+    // SORT by confidence tag BEFORE truncation — jangan ngandelin urutan
+    // alfabetis file (evolution-2026.md duluan dari per-game.md = THEORETICAL
+    // bisa hog budget sebelum [VERIFIED] surface). Stable sort: tie-break tetep
+    // urutan asli (alfabetis file → urutan section di file itu).
+    hits.sort((a, b) => {
+        const pa = _confidencePriority(a.header + '\n' + a.body);
+        const pb = _confidencePriority(b.header + '\n' + b.body);
+        return pa - pb;
+    });
+
+    // Limit total ~3KB biar context ga overflow. Hits udah ke-prioritize di atas,
+    // jadi yang ke-potong = THEORETICAL/netral terakhir, bukan [VERIFIED].
     const MAX = 3200;
-    let out = `# KB hits buat "${topic}" (${hits.length} entry)\n`;
+    let out = `# KB hits buat "${topic}" (${hits.length} entry, di-sort by confidence: VERIFIED → REVEALED PREF → netral → THEORETICAL)\n`;
     for (const h of hits) {
         const block = `\n## ${h.header}  \n_(file: ${h.file})_\n${h.body}\n`;
         if (out.length + block.length > MAX) {
-            out += `\n_…dipotong (${hits.length - hits.indexOf(h)} entry lagi). Persempit topic biar dapet detail.`;
+            out += `\n_…dipotong (${hits.length - hits.indexOf(h)} entry lagi, prioritas lebih rendah). Persempit topic biar dapet detail.`;
             break;
         }
         out += block;
