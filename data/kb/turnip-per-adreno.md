@@ -43,8 +43,9 @@ Turnip lebih aktif maintained buat use case Winlator/GameHub.
 - `github.com/maxjivi05/Components`
 - DXVK 2.x normal flow.
 
-### Adreno 810/829 (Dim 9300/9400 — wait, ini bingung; konfirmasi chip)
-- `github.com/DiskDVD/TurniptoolsA8XX`
+### Adreno 8XX series (SD 7 Gen 3 / SD 8 Elite / SD 8s Gen 4 — chip-specific TBD)
+- `github.com/DiskDVD/TurniptoolsA8XX` — generic A8XX driver pool
+- **NOTE:** Dimensity 9300/9400 BUKAN Adreno (itu MediaTek dengan Mali Immortalis G720/G925). Adreno eksklusif Snapdragon.
 
 ### Adreno 825 (SD 8s Gen 4)
 - `github.com/bkupaccount/freedreno_turnip-CI`

@@ -37,16 +37,26 @@
 ### Tier per chipset Mali
 - **Helio G99 / Mali-G57 MC2**: DXVK 1.12 Sarek dynasync + Proton 10 arm64ec + FEX/Box64 PERFORMANCE preset. Realistic FPS: 25-30 medium settings.
 - **Dimensity 8020-8200 / Mali-G610**: DXVK 1.7.3 async + Proton 10 arm64ec. Medium-high settings.
-- **Dimensity 8400 Ultra / Mali-G720 MC7**: DXVK 1.7.3 async + Proton-10.0.99-arm64ec + Ludashi 2.9 beta. High + HDR.
+- **Dimensity 8400 Ultra / Mali-G720 MC7**: DXVK **2.5/2.6/2.7 vanilla** (Vulkan 1.3 + GPL support) + Proton-10.0.99-arm64ec + Ludashi 2.9+ (Sarek bundled tapi vanilla cukup). High + HDR. Sarek cuma fallback kalo game spesifik crash di vanilla.
 
 ---
 
-## Mali Vulkan limitation (kenapa Sarek bisa, DXVK vanilla ngga)
-Mali Vulkan secara native miss:
+## Mali Vulkan limitation (TIER-AWARE, bukan blanket "Selalu Sarek")
+
+Mali Valhall TIER LAMA secara native miss:
 1. **BCn texture compression** (BC1-BC7). DXVK vanilla butuh BCn → crash di `vkCreateShaderModule`. **Sarek**: emulate BCn via CPU decompression, atau swap ke uncompressed.
 2. **gl_ClipDistance built-in**. DXVK vanilla pake ClipDistance buat clipping plane. **Sarek**: nambal SPIR-V, buang ClipDistance.
 
-Konsekuensi: **JANGAN rekomendasi DXVK vanilla di Mali**. Selalu Sarek.
+**Mali tier BARU (G720+, driver 2025+)** udah ada BCn native + `VK_EXT_graphics_pipeline_library` → DXVK vanilla jalan. Sarek opsional, BUKAN mandatory.
+
+Decision matrix (sumber canonical: `evolution-2026.md`):
+| Mali tier | Vulkan | DXVK |
+|-----------|--------|------|
+| Valhall awal (G57, G68, Helio G99) | 1.1/1.2 | DXVK Sarek **1.10.3 / 1.11.1** |
+| G610/G715 (Dim 8020-8200) + GPL belum support | 1.2 | DXVK Sarek **1.12** |
+| **G720+ (Dim 8400 Ultra, G725, Immortalis G720/G925) + GPL ada** | **1.3** | DXVK **2.5/2.6/2.7 vanilla** |
+
+**Anti-stale rule:** JANGAN absolut bilang "Selalu Sarek di Mali" — itu stale 2024-vibe. Mali G720+ tier dengan Vulkan 1.3 + GPL = vanilla cukup. Sarek cuma fallback kalo game spesifik crash.
 
 ## Exynos / Xclipse
 Sub-family Mali tapi quirky. Pake **ExynosTools** layer.

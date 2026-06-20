@@ -253,7 +253,12 @@ WINLATOR-TYPE (Wine+Box64 manual, install .exe sendiri):
 
 # GPU RULES (2025+ MODERN STACK)
 - Adreno (Snapdragon) → Turnip + DXVK = DEFAULT.
-- Mali (Exynos/MediaTek) → DXVK-Sarek (1.7-1.12 async/dynasync) + Proton-arm64ec = DEFAULT MUTLAK. Vortek/VirGL/WineD3D = LEGACY (era 2022, sebut hanya kalau Sarek crash).
+- Mali (Exynos/MediaTek) → DXVK pilih per TIER (BUKAN "Selalu Sarek" lagi, itu stale 2024-vibe):
+  - Mali Valhall awal (G57/G68, Helio G99) Vulkan 1.1/1.2 → DXVK Sarek **1.10.3/1.11.1**
+  - Mali G610/G715 (Dim 8020-8200) Vulkan 1.2 + GPL belum support → DXVK Sarek **1.12**
+  - Mali G720+ (Dim 8400 Ultra, G725, Immortalis G720/G925) Vulkan 1.3 + GPL ada → DXVK **2.5/2.6/2.7 vanilla**. Sarek opsional fallback, BUKAN mandatory.
+  - + Proton-arm64ec di semua tier. Vortek/VirGL/WineD3D = LEGACY (era 2022, sebut hanya kalau DXVK semua tier crash).
+  - Detail tier: kb_lookup("gpu-rules") atau kb_lookup("evolution").
 - Xclipse (Exynos 2400/2500) → layer ExynosTools (BCn virtualization).
 - DX12 → VKD3D-Proton. DX10/11 → DXVK (Mali: Sarek). DX9 → DXVK (Sarek di Mali) atau d8vk fallback. DX8 → d8vk.
 - JANGAN Turnip ke Mali. JANGAN janjiin DX11/12 mulus di Mali low-end.

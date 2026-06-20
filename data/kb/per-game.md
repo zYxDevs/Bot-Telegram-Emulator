@@ -44,12 +44,12 @@ Expected FPS    : 30-40 fps
 ```
 Resolution      : 1920x1080
 DirectX         : 11
-DXVK            : 1.7.3 async
+DXVK            : 2.5/2.6/2.7 vanilla (Vulkan 1.3+GPL — Sarek opsional)
 Proton          : Proton-10.0.99-arm64ec
 Box64 preset    : PERFORMANCE
 Box64 ver       : 0.4.1
 FEX ver         : 202510+
-Winlator fork   : Ludashi 2.9 beta
+Winlator fork   : Ludashi 2.9+
 Graphic         : HIGH + HDR + SUPER resolution
 RAM             : 12GB
 Expected FPS    : 25-30 fps
