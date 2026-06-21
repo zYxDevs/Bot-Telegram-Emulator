@@ -30,6 +30,10 @@ File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 - `fex-translation.md` — FEX_TSOENABLED, VectorTSO, HideHypervisorBit, per-game-engine matrix.
 - `fex-extreme-params.md` — FULL matrix Custom/Extreme params (X87ReducedPrecision, MaxInst, SmallTSCScale, MemcpySetTSO, HalfBarrierTSO, VolatileMetadata, MonoHacks, SMCChecks) + preset COMPATIBILITY/BALANCED/PERFORMANCE.
 
+## Box64 & FEXCore Preset Ground-Truth (var-level per app/fork) [VERIFIED screenshot UI]
+- `box64-fex-presets-ground-truth.md` — value preset Stability/Compatibility/Intermediate/Performance per app: **GameHub vs Winlator Ludashi Bionic 3.1**. **CONFIRMED Box64 preset value BEDA antar app** (7 var beda di 4 preset). FEXCore preset identik di 2 sample (kemungkinan universal). **PAKE FILE INI** kalau user nanya "Box64 Performance preset isinya apa", "bedanya Stability vs Compatibility", "preset X di [app] settingnya gimana" — WAJIB konfirmasi app/fork dulu kalau user ga sebut.
+- `box64-fex-variable-mechanics.md` — MEKANISME tiap var Box64/FEXCore + TUNING SIGNAL per game-archetype (Unity, multi-thread, x87 lawas, dst). Pake confidence tag [VERIFIED]/[THEORETICAL] per var. **PAKE FILE INI** kalau user mau compose CUSTOM preset, atau nanya "kenapa naikin SAFEFLAGS aman", "STRONGMEM ngaruh apa", "BIGBLOCK 3 bahaya ga buat game X".
+
 ## DXVK / DXGI / D3D9-11 (Vulkan translation layer)
 - `dxvk-conf.md` — knob dxvk.conf critical buat mobile (maxAvailableMemory, deferSurfaceCreation, async, dll).
 - `dxvk-conf-extras.md` — knob upstream lanjutan: Pipeline Library, Descriptor Heap/Buffer, FP16,
