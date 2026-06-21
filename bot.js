@@ -16,8 +16,9 @@ const { execFile } = require('child_process');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const FREEMODEL_KEY = process.env.FREEMODEL_KEY;
-if (!TELEGRAM_TOKEN || !FREEMODEL_KEY) {
-    console.error('❌  TELEGRAM_TOKEN / FREEMODEL_KEY belum di-set. Isi dulu file .env!');
+const TOKENROUTER_KEY = process.env.TOKENROUTER_KEY;
+if (!TELEGRAM_TOKEN || !FREEMODEL_KEY || !TOKENROUTER_KEY) {
+    console.error('❌  TELEGRAM_TOKEN / FREEMODEL_KEY / TOKENROUTER_KEY belum di-set. Isi dulu file .env!');
     process.exit(1);
 }
 
@@ -32,7 +33,9 @@ bot.getMe().then((me) => {
     console.log(`✅  Bot @${me.username} (id ${me.id}) siap.`);
 }).catch((e) => console.error('Gagal getMe:', e.message));
 
-const MODEL = process.env.MODEL || 'gpt-5.5';
+// Provider routing: hasImage=true → freemodel (vision), hasImage=false → tokenrouter (text-only).
+const VISION_MODEL = process.env.VISION_MODEL || 'gpt-5.5';
+const TEXT_MODEL = process.env.TEXT_MODEL || 'MiniMax-M3';
 
 // Tunable lewat env biar adaptif: HP low-end Termux turunin, server lega naikin.
 const MAX_HISTORY = parseInt(process.env.MAX_HISTORY || '10', 10);
@@ -928,23 +931,33 @@ async function runTool(name, args) {
 //  AGENTIC LOOP — chatCompletion + tool calls
 // =============================================================================
 
-async function chatCompletion(messages, model, useTools) {
-    const body = { model, messages };
+async function chatCompletion(messages, useTools, hasImage) {
+    const cfg = hasImage
+        ? { url: 'https://api.freemodel.dev/v1/chat/completions', key: FREEMODEL_KEY, model: VISION_MODEL }
+        : { url: 'https://api.tokenrouter.com/v1/chat/completions', key: TOKENROUTER_KEY, model: TEXT_MODEL };
+    const body = { model: cfg.model, messages };
     if (useTools) { body.tools = TOOLS; body.tool_choice = 'auto'; }
-    const res = await axios.post('https://api.freemodel.dev/v1/chat/completions', body, {
-        headers: { 'Authorization': `Bearer ${FREEMODEL_KEY}`, 'Content-Type': 'application/json' },
+    const res = await axios.post(cfg.url, body, {
+        headers: { 'Authorization': `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
         timeout: 120000
     });
     return res.data;
 }
 
+// MiniMax-M3 wraps reasoning in <think>...</think>. Strip before Telegram.
+// freemodel/GPT-5.5 ga punya quirk ini, regex no-op kalau ga match.
+function stripThink(text) {
+    return text.replace(/<think>[\s\S]*?<\/think>\s*/gi, '').trim();
+}
+
 // Model boleh manggil web_search/web_fetch beberapa kali sebelum jawab final.
 // Riwayat tool cuma dipakai sementara (working), ga disimpen ke chatHistory.
-async function runAgent(key, model, images) {
+async function runAgent(key, images) {
     const working = [...chatHistory[key]];
+    const hasImage = !!(images && images.length);
 
     // Suntik gambar ke pesan user terakhir (cuma di working copy biar ga berat).
-    if (images && images.length) {
+    if (hasImage) {
         const last = working[working.length - 1];
         const txt = last && typeof last.content === 'string' ? last.content : 'Analisa gambar ini.';
         working[working.length - 1] = {
@@ -959,7 +972,7 @@ async function runAgent(key, model, images) {
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         const lastRound = round === MAX_TOOL_ROUNDS;
         if (lastRound) working.push({ role: 'system', content: 'Cukup pencariannya. Jawab SEKARANG pakai info yang sudah didapat, jangan panggil tool lagi. Sertakan URL sumber.' });
-        const data = await chatCompletion(working, model, !lastRound);
+        const data = await chatCompletion(working, !lastRound, hasImage);
         const m = data && data.choices && data.choices[0] && data.choices[0].message;
         if (!m) return '(server ga balikin jawaban, coba lagi)';
         if (!lastRound && m.tool_calls && m.tool_calls.length) {
@@ -973,7 +986,7 @@ async function runAgent(key, model, images) {
             }
             continue;
         }
-        if (m.content && m.content.trim()) return m.content;
+        if (m.content && m.content.trim()) return stripThink(m.content);
         working.push({ role: 'user', content: 'Tulis jawaban finalnya sekarang dalam teks ya.' });
     }
     return '(kebanyakan langkah pencarian, coba persempit pertanyaannya)';
@@ -1262,8 +1275,9 @@ bot.on('message', async (msg) => {
     inFlight.add(key);
     await acquireLLMSlot();
     try {
-        const reply = await withTyping(chatId, () => runAgent(key, MODEL, images));
-        console.log(`[${key}] otak: ${MODEL} | jawaban ${reply.length} char | inflight=${llmInFlight}/${MAX_CONCURRENT_LLM}`);
+        const reply = await withTyping(chatId, () => runAgent(key, images));
+        const route = images.length ? `freemodel/${VISION_MODEL}` : `tokenrouter/${TEXT_MODEL}`;
+        console.log(`[${key}] otak: ${route} | jawaban ${reply.length} char | inflight=${llmInFlight}/${MAX_CONCURRENT_LLM}`);
         chatHistory[key].push({ role: 'assistant', content: reply });
         scheduleSave();
         await sendSafe(chatId, reply, isGroup ? { reply_to_message_id: msg.message_id } : {});
