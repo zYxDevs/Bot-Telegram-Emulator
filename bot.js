@@ -1237,7 +1237,21 @@ bot.on('message', async (msg) => {
     if (cmd === '/start') {
         chatHistory[key] = [{ role: 'system', content: SYSTEM_PROMPT }];
         scheduleSave();
-        sendSafe(chatId, '🤖 *COPUX-FourFect* aktif!\n\nGw asisten pakar emulator PC-di-Android (Winlator & semua fork, GameHub, Mobox, Box64, DXVK, Turnip, dll). Buat pertanyaan teknis, gw bisa *deep search* ke web (pcgamingwiki, protondb, github dxvk/driver) biar jawabannya akurat & ada sumbernya.\n\n📸 Bisa kirim *screenshot* error/setting juga — nanti gw bedah langsung dari gambarnya.\n\n*Perintah:*\n/cari <kata kunci> - paksa cari di web\n/reset - bersihin memori obrolan\n/addfix - sumbang fix ke Community KB\n/stats - (admin) statistik bot\n\nDi grup: panggil gw pake @' + (BOT_USERNAME || 'namabot') + ' atau reply pesan gw.\n\n———\n💡 Bot ini jalan pakai kredit dari freemodel. Kalau ngerasa kebantu & mau dukung biar tetap nyala, daftar lewat link gw (gratis, lu juga dapet kreditnya):\nhttps://freemodel.dev/invite/FRE-681bce55');
+        const mention = BOT_USERNAME ? '@' + BOT_USERNAME : 'bot';
+        sendSafe(chatId,
+            '🤖 *COPUX Helper aktif*\n\n' +
+            'Asisten teknis emulator PC-di-Android — Winlator (semua fork), GameHub, Mobox, Box64, FEXCore, DXVK, Turnip, Adreno tuning, preset per-game.\n\n' +
+            '📸 *Kirim screenshot* error/setting/log → gw bedah langsung dari gambarnya.\n' +
+            '🔎 *Pertanyaan teknis* → gw deep-search ke pcgamingwiki / protondb / github driver biar ada sumbernya.\n\n' +
+            '*Command:*\n' +
+            '/cari `<kata kunci>` — paksa cari di web dulu\n' +
+            '/addfix — sumbang fix ke Community KB\n' +
+            '/reset — bersihin memori obrolan\n\n' +
+            `*Di grup:* mention ${mention} atau reply pesan gw.\n\n` +
+            '———\n' +
+            '💡 _Bot ini jalan pakai kredit dari freemodel. Daftar lewat link gw (gratis, lu juga dapet kreditnya):_\n' +
+            'https://freemodel.dev/invite/FRE-681bce55'
+        );
         return;
     }
     if (cmd === '/reset') {

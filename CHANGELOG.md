@@ -4,6 +4,54 @@ Format: keep-a-changelog ringan. Tanggal absolut. Versi major = kapabilitas baru
 
 ---
 
+## [Unreleased] — 2026-06-22
+
+### Bot identity + scoped commands
+
+Setup nama, deskripsi (short + long), dan command list ke Telegram via Bot API. Command list di-scope: private vs group dapet daftar berbeda. Script idempotent, bisa di-rerun.
+
+**Added:**
+- `scripts/setup-bot-metadata.js` — one-off script: `setMyName`, `setMyShortDescription` (112/120), `setMyDescription` (401/512), `setMyCommands` scoped (private + group + clear default). Native `https` module, zero new deps. Auto-verify pasca-set.
+- Bot name: "COPUX • Helper Emulator PC-Android"
+- Private chat command menu: `/start`, `/cari`, `/addfix`, `/reset`
+- Group chat command menu: `/cari`, `/addfix`, `/reset` (skip `/start` biar ga noisy)
+- Admin command (`/stats`, `/reloadkb`) sengaja ga didaftarkan — low-key, tetap berfungsi
+
+**Changed:**
+- `bot.js` /start message — formatting rapi (bold/italic Markdown, divider), inline mention bot name dynamic dari `BOT_USERNAME`.
+- README — sync sama state sekarang (dual-model routing, commands table dengan scope, security guards section, struktur folder, install steps tambah `node scripts/setup-bot-metadata.js`).
+
+---
+
+## [2.2.0] — 2026-06-22
+
+### Security + correctness audit sweep — 13 findings fixed across 2 commits
+
+Audit lewat 2 reviewer agent paralel (typescript-reviewer + security-reviewer) — 17 finding raw, dedup ke 12 unik, 10 fix di commit pertama, 3 follow-up di commit kedua setelah Sonnet review.
+
+**Fixed (commit `a7a0f20`):**
+- **C1 SSRF** — `webFetch` blokir RFC1918/loopback/link-local/cloud-metadata via DNS resolve + blocklist, https-only.
+- **C2 prompt injection** — strip `[META ...]` tag dari user input sebelum di-concat ke history.
+- **C3 photo OOM** — `MAX_PHOTO_BYTES` default 6MB → 2MB (3 concurrent × base64 ≈ 8MB peak, anti-OOM Termux).
+- **H1 chatHistory race** — push setelah `acquireLLMSlot()`, guard `pushed` boolean buat catch.
+- **H2 binary file decode** — `responseType: 'arraybuffer'` + heuristik printable ratio (anti string blowup PDF/zip).
+- **H3 shutdown race** — skip sync save kalau async lagi in-flight.
+- **H4 agentic loop deadline** — `AGENT_DEADLINE_MS` (default 180s) total budget, cek tiap awal round.
+- **M1** error log capture `e.response.status`.
+- **M2** `webFetch` error message generic (ga leak IP:port).
+- **M3** YouTube regex strip trailing punctuation.
+- **L1** final-round empty response fallback.
+
+**Fixed (commit `518a632`, follow-up Sonnet review):**
+- **C1 follow-up — DNS rebinding / TOCTOU + redirect bypass:** custom `lookup` di `https.Agent` pin IP yang udah divalidasi, `maxRedirects: 0` + manual hop loop (`MAX_REDIRECT_HOPS=3`), tiap target redirect divalidasi ulang via `_resolveSafeUrl`.
+- **C2 follow-up — META edge case:** `[META]` tanpa atribut kosong sekarang ke-match (`/\[META(?:\s[^\]]*)?\]/gi`).
+- **H3 follow-up — shutdown await:** track `saveInFlightPromise`, async shutdown handler + `Promise.race` vs 5s timeout (sebelumnya: `process.exit(0)` langsung tanpa await).
+
+**False positives (didokumentasi, ga di-patch):**
+- `BOT_USERNAME` race — code udah punya falsy guard, aman.
+
+---
+
 ## [Unreleased] — 2026-06-20 (malam)
 
 ### KB diperluas — REF4IK ecosystem (Russian Winlator fork + bundled runtime CDN)

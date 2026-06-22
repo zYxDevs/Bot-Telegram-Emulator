@@ -10,7 +10,7 @@ Bot-nya gw kunci ke domain emulator doang. Nanya resep masakan atau soal coding 
 
 Format jawaban crash dipaksa terstruktur: `Crash di L<X> — <komponen>. Root cause: <mekanisme>. Fix: <langkah>.` Gw capek baca jawaban AI yang ngambang nggak jelas root cause-nya apa, jadi format ini gw paksa dari prompt level.
 
-LLM-nya lewat freemodel.dev (default GPT-5.5).
+LLM-nya dual-route: **vision via freemodel.dev** (GPT-5.5) buat baca screenshot/foto, **text via TokenRouter** (MiniMax-M3) buat reasoning panjang. Routing otomatis berdasarkan ada gambar atau enggak — ga perlu user pilih manual.
 
 ## Fitur
 
@@ -36,16 +36,33 @@ Ini yang paling penting karena jalan di HP. Concurrency LLM di-semaphore (defaul
 
 ### File reader
 
-Kirim dokumen text/log/json/code (≤1MB), bot baca isinya buat konteks reply.
+Kirim dokumen text/log/json/code (≤1MB), bot baca isinya buat konteks reply. Binary file (PDF, zip, image renamed) di-skip pakai heuristik printable-ratio biar ga blowup RAM.
+
+### Knowledge Base
+
+`data/kb/*.md` — 20+ file curated tentang Winlator forks (REF4IK, StevenMXZ Ludashi, GameHub, BannerHub), Wine/Proton context, Box64/FEX evolution, DXVK conf, Adreno/Mali stack, preset per-game ground-truth. Bot baca via `kb_lookup` tool sebelum jawab — kalau di KB udah ada, prioritas di atas web search (anti-halu).
+
+Admin bisa `/reloadkb` buat reload tanpa restart proses.
+
+### Security guards
+
+- **SSRF** — `webFetch` blokir RFC1918/loopback/link-local/cloud metadata + DNS-pin (anti-rebinding) + manual redirect validation (cap 3 hop).
+- **Prompt injection** — strip `[META ...]` tag dari user input sebelum di-concat ke history (anti owner-spoof).
+- **Photo OOM** — cap 2MB/foto, base64 alloc-aware buat HP RAM ketat.
+- **Shutdown** — async save di-await dengan 5s timeout sebelum exit; atomic rename biar partial state ga korup file.
 
 ## Commands
 
-| Command | Akses | Fungsi |
-|---|---|---|
-| `/start` | semua | sapaan |
-| `/reset` | semua | clear history sesi |
-| `/cari <query>` | semua | force web search |
-| `/stats` | admin | statistik user |
+| Command | Akses | Scope menu | Fungsi |
+|---|---|---|---|
+| `/start` | semua | private only | intro & info bot |
+| `/cari <query>` | semua | private + group | force web search dulu sebelum jawab |
+| `/addfix <isi>` | semua | private + group | sumbang fix/tweak ke Community KB (di-review admin) |
+| `/reset` | semua | private + group | clear history sesi |
+| `/stats` | admin | hidden | statistik user, top-N, breakdown chat type |
+| `/reloadkb` | admin | hidden | reload KB cache dari disk |
+
+Command list di `/` menu Telegram di-scope per chat type (private vs group) lewat `setMyCommands`. Setup via `node scripts/setup-bot-metadata.js` — idempotent, bisa di-rerun kapan aja.
 
 Grup: mention atau reply pesan bot. DM: langsung chat aja.
 
@@ -57,7 +74,7 @@ Semua cap di bawah ini env-tunable. Default-nya gw set buat HP 4-6GB RAM:
 |---|---|---|---|
 | `MAX_HISTORY` | 10 | HP <4GB, ke 6-8 | server, ke 20+ |
 | `MAX_CONCURRENT_LLM` | 3 | HP 2-4GB, ke 1-2 | server, ke 5+ |
-| `MAX_PHOTO_BYTES` | 6MB | low-RAM, ke 3MB | — |
+| `MAX_PHOTO_BYTES` | 2MB | — | server, ke 4-6MB |
 | `MAX_FILE_SIZE_BYTES` | 1MB | — | server, ke 4-8MB |
 | `MAX_FETCH_BYTES` | 4MB | — | — |
 | `SESSION_TTL_MS` | 6 jam | RAM ketat, ke 2-3 jam | — |
@@ -82,6 +99,7 @@ Yang wajib diisi:
 ```
 TELEGRAM_TOKEN=
 FREEMODEL_KEY=
+TOKENROUTER_KEY=
 ```
 
 Opsional (kosongin aja kalau ga punya, fallback ke DDG):
@@ -103,6 +121,12 @@ Jalanin:
 pm2 start bot.js --name copux
 pm2 save
 pm2 startup
+```
+
+(Opsional, sekali aja) — push bot identity (nama, deskripsi, command list) ke Telegram:
+
+```bash
+node scripts/setup-bot-metadata.js
 ```
 
 Cek:
@@ -132,25 +156,30 @@ Single tenant — satu instance cuma buat satu bot token. Mau multi-bot, harus r
 
 ```
 Bot-Telegram/
-├── bot.js          # semuanya ada di sini — handler, AI call, persona, vision, search
+├── bot.js                          # semuanya ada di sini — handler, AI call, persona, vision, search, tools
+├── scripts/
+│   └── setup-bot-metadata.js       # one-off: push nama/desc/commands ke Bot API
 ├── package.json
-├── .env            # gitignored
+├── .env                            # gitignored
 ├── .env.example
+├── README.md
+├── CHANGELOG.md
 └── data/
     ├── history.json
-    └── kb/         # knowledge base curated, di-track
+    ├── addfix-queue.json           # antrian submission user via /addfix
+    └── kb/                         # 20+ file knowledge base curated, di-track
 ```
 
 ## Stack
 
-Node 18+, `node-telegram-bot-api` (polling), `axios`, `dotenv`, PM2. LLM lewat freemodel.dev. Search: Serper/Tavily/DDG. Media: yt-dlp + ffmpeg (opsional).
+Node 18+, `node-telegram-bot-api` (polling), `axios`, `dotenv`, PM2. LLM dual-route: **freemodel.dev** (vision, GPT-5.5) + **TokenRouter** (text, MiniMax-M3). Search: Serper/Tavily/DDG. Media: yt-dlp + ffmpeg (opsional).
 
 ## Mau dibenerin
 
-- Pecah `bot.js` jadi modul
-- Rate limit per-grup
+- Pecah `bot.js` jadi modul (sekarang ~1.3k baris)
+- Rate limit per-grup (saat ini per-user, grup gede bisa kena 429 upstream)
 - Webhook mode
-- Fallback LLM kalau freemodel down
+- Test suite (Jest/Vitest) — saat ini smoke test manual per fix
 - SQLite buat stats/rate log, biar nggak hilang pas restart
 
 ## License
