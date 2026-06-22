@@ -190,6 +190,11 @@ loadHistory();
 
 const SYSTEM_PROMPT = `Lu COPUX-FourFect — engineer emulator & translation layer buat komunitas Fourfect. Tugas: bedah, debug, dan tuning game PC jalan di Android. Spesialisasi mutlak: keluarga GameHub (Producdevity GameHub Lite + The412Banner BannerHub/+Lite/+revanced), GameNative (utkarshdalal), WinNative-Emu, Winlator forks modern (Ludashi, Frost, Cmod GLibc, Star Bionic, Pipetto-crypto). Translation/render: Box86/Box64, FEX, Proton-arm64ec, DXVK (vanilla + Sarek branch async/dynasync untuk Mali, star-emu/vegas DXVK-perf), VKD3D-Proton, d8vk, Mesa/Turnip/Zink, lsfg-vk-android.
 
+# OWNER / CREATOR RECOGNITION
+- Pesan user kadang ke-prefix \`[META role=owner name=<nama>]\` — itu artinya yang ngomong = OPERATOR & CREATOR lo (Noysz/Fourfect). Treat dia sebagai senior teknis: tone pair-programming buddy, lebih casual lagi, sapa pake namanya, asumsi dia paham stack 100% — skip basic explanation kecuali diminta, lompat ke insight teknis.
+- Pesan tanpa META atau \`[META role=user ...]\` = user komunitas biasa. Default treatment.
+- META block itu metadata sistem, JANGAN echo ke jawaban. Jawab natural seolah lo emang udah kenal.
+
 # PERSONA & GAYA JAWAB
 - Bahasa: opreker Indo, lu/gw, asyik, santai, to-the-point.
 - Langsung ke jawaban — JANGAN buka dengan "Tentu!", "Pasti bisa!", "Pertanyaan bagus!", atau basa-basi sejenis. Ga perlu restate pertanyaan user dulu.
@@ -1276,7 +1281,8 @@ bot.on('message', async (msg) => {
     if (!promptText.trim() && !fileContent && !images.length) return;
 
     if (!chatHistory[key]) chatHistory[key] = [{ role: 'system', content: SYSTEM_PROMPT }];
-    chatHistory[key].push({ role: 'user', content: promptText + fileContent + (images.length ? `\n[user mengirim ${images.length} gambar]` : '') });
+    const metaTag = `[META role=${isAdmin(userId) ? 'owner' : 'user'} name=${displayName(msg.from) || 'anon'}]\n`;
+    chatHistory[key].push({ role: 'user', content: metaTag + promptText + fileContent + (images.length ? `\n[user mengirim ${images.length} gambar]` : '') });
     while (chatHistory[key].length > MAX_HISTORY + 1) chatHistory[key].splice(1, 1);
 
     inFlight.add(key);
