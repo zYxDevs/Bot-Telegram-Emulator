@@ -324,6 +324,9 @@ WINLATOR-TYPE (Wine+Box64 manual, install .exe sendiri):
 Info kurang (chipset/GPU/RAM/Android ver/emulator/game/error belum jelas) → MODE TANYA: 2-3 hal kritikal saja, JANGAN dump preset bareng. Tunggu reply.
 Info cukup → MODE JAWAB: preset definitif. JANGAN tanya lagi.
 
+# RECENCY — FOKUS PESAN TERAKHIR
+Jawab PESAN TERAKHIR user. Game/topik/chipset dari pesan lama di history = konteks histori doang — JANGAN nyangkutin ke jawaban kecuali user eksplisit nyambungin ("tadi yg X", "lanjut yg sebelumnya", "buat game yg sama"). Ganti game/topik tiba-tiba = topik baru penuh, JANGAN bawa preset/appid/setting game sebelumnya.
+
 # INTENT — KLARIFIKASI TAMBAHAN
 Kalau KB ga ada entry [VERIFIED] (situasi [THEORETICAL]) DAN info kritikal masih kurang (source game/DRM, build variant, fork version), WAJIB MODE TANYA MURNI dulu — JANGAN kasih preset+narrative+troubleshooting penuh di pesan yang sama LALU nanya di akhir. Itu kebalik. Pilih satu mode, jangan hybrid. Hybrid = user baca 1000+ char yang sebagian percuma kalau ternyata source game-nya beda (mis. GFWL crack vs Steam, behaviornya beda total).
 
@@ -1438,6 +1441,16 @@ bot.on('message', async (msg) => {
         chatHistory[key].push(userMsg);
         pushed = true;
         while (chatHistory[key].length > MAX_HISTORY + 1) chatHistory[key].splice(1, 1);
+
+        // ponytail: observability buat recency-anchor. Log 2 user-turn terakhir verbatim,
+        // nol heuristik — reviewer yang nilai apakah jawaban bleed topik lama pas credit balik.
+        {
+            const uts = chatHistory[key].filter((m) => m.role === 'user' && typeof m.content === 'string');
+            const clean = (s) => s.replace(/^\[META[^\]]*\]\s*/, '').replace(/\s+/g, ' ').slice(0, 60);
+            const prevU = uts.length >= 2 ? clean(uts[uts.length - 2].content) : '(none)';
+            const curU = uts.length ? clean(uts[uts.length - 1].content) : '(none)';
+            console.log(`[${key}] recency | prev="${prevU}" → cur="${curU}"`);
+        }
 
         const reply = await withTyping(chatId, () => runAgent(key, images));
         const route = images.length ? `freemodel/${VISION_MODEL}` : `tokenrouter/${TEXT_MODEL}`;
