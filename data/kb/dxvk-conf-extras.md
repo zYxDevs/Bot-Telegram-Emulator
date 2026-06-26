@@ -197,4 +197,4 @@ d3d11.relaxedGraphicsBarriers = True          # FPS boost aman
 dxvk.logLevel = none                          # no I/O waste
 ```
 
-Kalo Mali pre-G77 atau driver Vulkan 1.0: **lupakan ini, pake DXVK Sarek 1.11.0/1.12.0** — lebih cocok.
+Kalo Mali pre-G77 atau driver Vulkan 1.0: **lupakan ini, pake DXVK Sarek 1.11.1-mali-fix / 1.12.0** — lebih cocok.

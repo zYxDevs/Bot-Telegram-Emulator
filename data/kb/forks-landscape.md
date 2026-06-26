@@ -106,8 +106,8 @@ Tujuan file ini: bot tau **mana yang harus direkomendasiin**, **mana yang vaporw
 ### DXVK Sarek (fork Mali — pythonlover02)
 
 - **Posisi:** community fork khusus GPU tanpa Vulkan 1.3 / `graphics_pipeline_library` (Mali, Adreno tua). Base DXVK 1.10.x.
-- **Versi Sarek REAL:** 1.10.4–1.10.9, **1.11.0** ("Red River"), **1.12.0** ("Late Anniversary", +dyasync +d7vk). GA ADA Sarek 1.7.x / 1.10.3 / 1.11.1 — itu HALU.
-- ⚠️ **JANGAN ketuker:** `1.7.2` / `1.10.3` itu build **Sporif/dxvk-async** (archived Nov 2025), BUKAN Sarek. `gplasync` (Ph42oN) beda lagi — butuh Vulkan 1.3, BUKAN buat Mali tua.
+- **Versi Sarek REAL:** canonical pythonlover02 = 1.10.4–1.10.9, **1.11.0** ("Red River"), **1.12.0** ("Late Anniversary", +dyasync +d7vk). Fork zeyadadev = **`v1.11.1-mali-fix`** (base 1.11.0 + fix Mali black-screen, real, ~1.5k dl).
+- ⚠️ **JANGAN ketuker:** `1.7.2` / `1.10.3` itu build **Sporif/dxvk-async** (archived Nov 2025), BUKAN Sarek. Official DXVK & Sporif GA ADA 1.11.x — yang punya 1.11.1 cuma fork Sarek. `gplasync` (Ph42oN) beda lagi — butuh Vulkan 1.3, BUKAN buat Mali tua.
 - **Async vs dynasync:** "async" (Sporif) shader compile background, sering crash. "dyasync" = fitur di Sarek 1.12.0. "gplasync" = generasi GPL (Vulkan 1.3+). Detail: kb_lookup("evolution").
 - **Saranin kalau:** user Mali black-screen / stutter shader compile.
 
@@ -146,7 +146,7 @@ Tujuan file ini: bot tau **mana yang harus direkomendasiin**, **mana yang vaporw
 |---|---|
 | Adreno 7xx + game DX11 modern | Winlator main / CMOD + DXVK 2.x + Turnip community |
 | Adreno 6xx older + game DX11 | Winlator CMOD + DXVK stable + adrenotools + Turnip per-chip |
-| Mali + game DX11 black screen | DXVK Sarek (1.11.0 atau 1.12.0) — bukan DXVK 2.x |
+| Mali + game DX11 black screen | DXVK Sarek **1.11.1-mali-fix** (fork zeyadadev, FIX black-screen Mali) atau 1.12.0 — bukan DXVK 2.x |
 | Mali + game DX12 | VKD3D + Sarek combo; jangan harap perfect — banyak gap feature |
 | Game DDraw (90s–00s) | CNC DDraw, bukan DXVK |
 | Game DX8 | DXVK 2.x (d8vk merged); jangan cari d8vk standalone |

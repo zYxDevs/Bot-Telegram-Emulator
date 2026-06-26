@@ -20,14 +20,16 @@ Jangan campur. Beda repo, beda versi, beda target hardware:
 | Nama | Apa | Versi REAL | Target | Repo |
 |---|---|---|---|---|
 | **async (Sporif)** | Patch async generik DXVK lama. ARCHIVED Nov 2025, ga di-maintain | 1.7.2 → 2.0 (mentok 2.0) | Generic, BUKAN Mali-khusus | Sporif/dxvk-async |
-| **DXVK-Sarek** | Fork DXVK 1.10.x buat GPU TANPA Vulkan 1.3 | 1.10.4→1.10.9, **1.11.0**, **1.12.0** | **MALI / Vulkan 1.1-1.2 = INI** | pythonlover02/DXVK-Sarek |
+| **DXVK-Sarek** | Fork DXVK 1.10.x buat GPU TANPA Vulkan 1.3 | canonical: 1.10.4→1.10.9, **1.11.0**, **1.12.0**. fork zeyadadev: **v1.11.1-mali-fix** | **MALI / Vulkan 1.1-1.2 = INI** | pythonlover02 + zeyadadev/DXVK-Sarek |
 | **gplasync (Ph42oN)** | GPL + async buat DXVK 2.x | v2.1-3 → **v2.7.1-1** (+ 3.0-1) | **GPU MODERN, Vulkan 1.3+. BUKAN Mali tua** | Ph42oN/dxvk-gplasync (GitLab) |
 
 **ATURAN MUTLAK:** Mali tanpa Vulkan 1.3 (pre-Valhall, Valhall awal G57/G68) → **DXVK-Sarek**. JANGAN kasih gplasync (butuh Vulkan 1.3 + `graphics_pipeline_library` yang Mali tua GA PUNYA).
 
-### Versi official DXVK yang BENERAN ADA (anti-halu)
-- **1.x mentok di 1.10.3** (2 Agu 2022) → langsung lompat **2.0**. **GA ADA 1.11 / 1.11.1** di official MAUPUN Sporif async. Kalau ada yang sebut "DXVK 1.11.1" = HALU.
-- **DXVK-Sarek** punya versi SENDIRI (bukan official): 1.10.4–1.10.9 → **1.11.0** ("Red River") → **1.12.0** ("Late Anniversary", 16 Apr 2026). **GA ADA Sarek 1.11.1** (lompat 1.11.0 → 1.12.0). "Sarek 1.10.3" cuma tag repack bootstrap, rilis asli mulai 1.10.4.
+### Versi DXVK yang BENERAN ADA (anti-halu — presisi per-repo)
+- **Official DXVK (doitsujin):** 1.x mentok di **1.10.3** (2 Agu 2022) → langsung lompat **2.0**. **Official GA PERNAH punya 1.11.x.** Kalau ada yang sebut "DXVK 1.11.1" maksudnya OFFICIAL → itu salah.
+- **Sporif/dxvk-async:** patch async, 1.7.2 → 2.0. Juga GA ADA 1.11.x. (1.7.2/1.10.3 async = INI, bukan Sarek.)
+- **DXVK-Sarek canonical (`pythonlover02`):** 1.10.4–1.10.9 → **1.11.0** ("Red River") → **1.12.0** ("Late Anniversary", 16 Apr 2026). Canonical lompat 1.11.0 → 1.12.0 (ga ada 1.11.1 di SINI). "Sarek 1.10.3" cuma tag repack bootstrap.
+- **DXVK-Sarek fork (`zeyadadev`):** **`v1.11.1-mali-fix` = REAL** (2025-09-06, base 1.11.0 + fix Mali black-screen + unbound-texture, test Mali-G610, ~1.5k dl). **Jadi "Sarek 1.11.1" BUKAN halu** — itu rilis Mali-fix di fork, JUSTRU bagus buat Mali. StevenMXZ ship sbg `dxvk-11.1-sarek-async.wcp`.
 
 ### Era 1.x (2018 – Agu 2022)
 - Foundation D3D9/10/11 → Vulkan. Tanpa requirement Vulkan modern.
@@ -70,13 +72,13 @@ Jangan campur. Beda repo, beda versi, beda target hardware:
 | Driver Vulkan user | Pakai (theoretical) |
 |---|---|
 | Vulkan 1.0/1.1 (Mali pre-Valhall / Adreno < 6xx) | DXVK-Sarek (base 1.10.x) atau async lawas 1.10.3 |
-| Vulkan 1.1/1.2 (Mali Valhall awal: G57, G68) | **DXVK-Sarek 1.11.0 / 1.12.0** |
+| Vulkan 1.1/1.2 (Mali Valhall awal: G57, G68) | **DXVK-Sarek 1.11.1-mali-fix / 1.12.0** |
 | Vulkan 1.2 tanpa GPL (Mali G610/G715 driver tua) | DXVK-Sarek 1.12.0 (BCn emu) |
 | Vulkan 1.3 + GPL (Adreno 7xx, Mali G720+, Turnip baru) | DXVK 2.5–2.7 vanilla / gplasync 2.7.1-1 |
 | Adreno + adrenotools custom Turnip | DXVK 2.5+ / gplasync |
 | Vulkan 1.4 (sangat jarang di mobile) | DXVK 3.0 (kalau driver dukung) |
 
-**[REVEALED PREFERENCE]** StevenMXZ Winlator-Contents CDN ship `dxvk-11.1-sarek-async.wcp` sebagai default Mali — "11.1" itu **label terpotong dari Sarek 1.11.0** (repo lain nyebutnya `dxvk-sarek-async-1.11.0.wcp`). Mali default tanpa data per-game = **DXVK-Sarek 1.11.0–1.12.0**, BUKAN vanilla 2.x, BUKAN gplasync.
+**[REVEALED PREFERENCE]** StevenMXZ Winlator-Contents CDN ship `dxvk-11.1-sarek-async.wcp` sebagai default Mali — "11.1" = **Sarek 1.11.1** (fork zeyadadev mali-fix). Mali default tanpa data per-game = **DXVK-Sarek 1.11.1-mali-fix / 1.12.0**, BUKAN vanilla 2.x, BUKAN gplasync.
 
 **Empirical override (ke-test Noysz) — [VERIFIED]:**
 - Helio G99 + GTA V DX10 1024x600 Medium = **DXVK 1.7.2** (`dxvk-1.7.2.wcp` di StevenMXZ) > Sarek 1.12 (BCn emu Sarek over-burden Mali-G57 weak CPU). Catatan: "1.7.2" yang Noysz pake itu build ringan; "async" itu label longgar — package StevenMXZ `dxvk-1.7.2.wcp` adalah vanilla 1.7.2.

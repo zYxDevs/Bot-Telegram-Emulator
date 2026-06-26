@@ -80,7 +80,7 @@ Pattern: Driver Download Manager (Ludashi 2.8+) baca `contents.json` di repo ini
 
 | GPU / Use case | DXVK build |
 |----------------|------------|
-| Mali (Sarek default) | `dxvk-11.1-sarek-async.wcp` (= **Sarek 1.11.0** sarek-async; "11.1" itu label terpotong dari 1.11.0, repo lain nyebutnya `dxvk-sarek-async-1.11.0.wcp`) |
+| Mali (Sarek default) | `dxvk-11.1-sarek-async.wcp` (= **Sarek 1.11.1** = fork zeyadadev `v1.11.1-mali-fix`, base 1.11.0 + fix Mali black-screen — varian async) |
 | Mali legacy compat | `dxvk-1.10.3-async.wcp` |
 | Adreno modern (default) | `dxvk-2.7.1-gplasync.wcp` |
 | Adreno + Wine ARM64EC | `dxvk-2.7.1-arm64ec-gplasync.wcp` |

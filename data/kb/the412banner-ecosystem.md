@@ -218,7 +218,7 @@ Single `.wcp` covering D3D1-12: DXVK 2.7.1 (yang udah include d7vk D3D1-7 path) 
 2. User nyebut "BannerHub revanced" → klarifikasi: maksud **BannerHub v6** (XiaoJi 6.0.9 base, repo `bannerhub-revanced`), bukan "revanced version of BannerHub 3.x".
 3. User upgrade dari v3.x ke v6 fail install → jelasin: keystore beda, **wajib uninstall dulu**, history game di-backup manual via Export Config sebelumnya.
 4. User nyebut "Bannerlator" → ini **emulator** Winlator-continuation, BUKAN BannerHub launcher. Jangan campur jawaban.
-5. User Mali pake BannerHub/Bannerlator → DXVK pick TIER-aware sama dengan rules existing (Sarek 1.11.0/1.12.0 vs vanilla 2.x). The412Banner Nightlies punya semua versi via `.wcp`.
+5. User Mali pake BannerHub/Bannerlator → DXVK pick TIER-aware sama dengan rules existing (Sarek 1.11.1-mali-fix / 1.12.0 vs vanilla 2.x). The412Banner Nightlies punya semua versi via `.wcp`.
 6. User mau install DXVK/Box64/Wine custom → arahin BCI (Banners Component Injector) sebagai GUI jalur, atau direct URL `https://raw.githubusercontent.com/The412Banner/winlator-contents/main/contents.json` di Driver Download Manager.
 7. User GameHub 6.0+ broken library entry → JANGAN saran GamePathFixer (v5.x only). Saran upgrade/reinstall.
 8. User crash random + bingung layer mana → AIO-Graphics-Test untuk diagnostic dulu sebelum tweak.

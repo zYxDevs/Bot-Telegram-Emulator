@@ -19,9 +19,11 @@
 ### Default stack Mali modern
 - **Driver Vulkan**: Mesa Turnip ga jalan di Mali — pake **driver vendor Mali** (built-in HP) atau **Vortek (Wear/EOA)** kalau emulator support custom driver.
 - **DX wrapper**: **DXVK-Sarek** — PRIMARY buat Mali. Fork DXVK khusus GPU tanpa Vulkan 1.3 (nambal BCn + ClipDistance).
-  - **Versi Sarek REAL** (`github.com/pythonlover02/DXVK-Sarek`): 1.10.4–1.10.9, **1.11.0** ("Red River"), **1.12.0** ("Late Anniversary", +dyasync +d7vk +Mali black-screen fix). GA ADA Sarek 1.7.x maupun 1.11.1.
-  - ⚠️ **JANGAN ketuker:** `DXVK 1.7.2 async` / `1.7.3 async` itu **build Sporif/dxvk-async** (`github.com/Sporif/dxvk-async`, archived Nov 2025) — BUKAN Sarek. Build ringan generik, kadang dipake di Mali low-end karena enteng, tapi bukan bagian repo Sarek.
-  - `dynasync` = fitur di Sarek 1.12.0. `sarek-async` = varian Sarek dgn async (StevenMXZ label `dxvk-11.1-sarek-async.wcp` = Sarek 1.11.0).
+  - **Versi Sarek REAL — 2 repo:**
+    - Canonical `pythonlover02/DXVK-Sarek`: 1.10.4–1.10.9, **1.11.0** ("Red River"), **1.12.0** ("Late Anniversary", +dyasync +d7vk).
+    - Fork `zeyadadev/DXVK-Sarek`: **`v1.11.1-mali-fix`** (rilis 2025-09-06, base 1.11.0 + fix Mali black-screen + unbound-texture fix, test Mali-G610, asset `dxvk-sarek-v1.11.1-mali-fix.tar.gz`, ~1.5k dl). **Sarek 1.11.1 = REAL**, justru Mali-specific.
+  - ⚠️ **JANGAN ketuker:** `DXVK 1.7.2 async` / `1.7.3 async` / `1.10.3 async` itu **build Sporif/dxvk-async** (archived Nov 2025) — BUKAN Sarek. Official DXVK & Sporif GA ADA 1.11.x. Yang punya 1.11.1 cuma fork Sarek zeyadadev.
+  - `dynasync` = fitur di Sarek 1.12.0. StevenMXZ `dxvk-11.1-sarek-async.wcp` = Sarek **1.11.1** (mali-fix) varian async.
 - **Wine/Proton**: **Proton-arm64ec** (Proton port khusus ARM64EC). Versi: `Proton-10.0.99-arm64ec`, `wine-10.0-arm64ec`.
 - **CPU translator**:
   - GameHub/BannerHub → **FEX** (versi 202510, 202604, dll — cek release).
@@ -55,7 +57,7 @@ Mali Valhall TIER LAMA secara native miss:
 **[THEORETICAL]** Decision matrix (interpolasi spec Mali + DXVK feature reqs — **BELUM** dari bench database):
 | Mali tier | Vulkan | DXVK (theoretical) |
 |-----------|--------|--------------------|
-| Valhall awal (G57, G68, Helio G99) | 1.1/1.2 | Sarek **1.11.0 / 1.12.0** (architectural) |
+| Valhall awal (G57, G68, Helio G99) | 1.1/1.2 | Sarek **1.11.1-mali-fix / 1.12.0** (architectural; 1.11.1 = fix black-screen Mali) |
 | G610/G715 (Dim 8020-8200) + GPL belum support | 1.2 | Sarek **1.12.0** (architectural) |
 | G720+ (Dim 8400 Ultra, G725, Immortalis G720/G925) + GPL ada | 1.3 | DXVK **2.5/2.6/2.7 vanilla** (architectural, untest) |
 
