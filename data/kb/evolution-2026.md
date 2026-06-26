@@ -8,58 +8,78 @@ Sumber: github.com/{doitsujin/dxvk, ptitSeb/box64, FEX-Emu/FEX}/releases.
 
 ## DXVK — timeline + mobile takeaway
 
-### Era 1.x (2018 – Q1 2022)
-- Foundation D3D9/10/11 → Vulkan. Tanpa requirement extension Vulkan modern.
-- **Async fork (community)** lahir di sini — solve shader compile stutter. Versi populer mobile: **1.7.2, 1.10.3, 1.11.1**.
-- **DXVK Sarek** muncul di akhir era 1.x (1.10+ branch) — fokus Mali Vulkan 1.0/1.1 yang ga punya `graphics_pipeline_library`.
-- Mobile take: **kalau driver Mali user PRA-G77 atau Vulkan 1.1 only → KUNCI di DXVK 1.x family (Sarek)**. Vanilla 2.x ga jalan.
+Sumber [VERIFIED via GitHub releases/tags, Jun 2026]:
+- Official: `github.com/doitsujin/dxvk/releases`
+- Fork Mali: `github.com/pythonlover02/DXVK-Sarek`
+- gplasync: `gitlab.com/Ph42oN/dxvk-gplasync`
+- async lama: `github.com/Sporif/dxvk-async` (ARCHIVED 23 Nov 2025)
 
-### DXVK 2.0 (Q1 2022)
-- Migrasi build ke meson. Refactor besar.
-- Mulai pake extension Vulkan baru → mobile driver lawas ke-cut.
-- Mobile take: **Adreno tua / Mali pre-Valhall → tetep di 1.x.**
+### ⚠️ 3 HAL BEDA yang SERING KETUKER — BACA DULU SEBELUM REKOMENDASI
+Jangan campur. Beda repo, beda versi, beda target hardware:
 
-### DXVK 2.3 (2023)
-- Specialization constants di descriptor cache.
-- Mobile take: net positive perf di driver Vulkan 1.3 (Adreno 7xx, Mali-G715+).
+| Nama | Apa | Versi REAL | Target | Repo |
+|---|---|---|---|---|
+| **async (Sporif)** | Patch async generik DXVK lama. ARCHIVED Nov 2025, ga di-maintain | 1.7.2 → 2.0 (mentok 2.0) | Generic, BUKAN Mali-khusus | Sporif/dxvk-async |
+| **DXVK-Sarek** | Fork DXVK 1.10.x buat GPU TANPA Vulkan 1.3 | 1.10.4→1.10.9, **1.11.0**, **1.12.0** | **MALI / Vulkan 1.1-1.2 = INI** | pythonlover02/DXVK-Sarek |
+| **gplasync (Ph42oN)** | GPL + async buat DXVK 2.x | v2.1-3 → **v2.7.1-1** (+ 3.0-1) | **GPU MODERN, Vulkan 1.3+. BUKAN Mali tua** | Ph42oN/dxvk-gplasync (GitLab) |
 
-### DXVK 2.4 / 2.4.1 (2023)
-- **Dynamic memory chunk sizing** — chunk allocation ngikutin pola game, ga lagi konstan 256MB.
-- **D8VK ke-merge** ke DXVK — support D3D8 built-in.
-- Mobile take: **lupakan d8vk standalone**. Tweak `dxvk.maxChunkSize` jadi sekedar hint, bukan keras.
+**ATURAN MUTLAK:** Mali tanpa Vulkan 1.3 (pre-Valhall, Valhall awal G57/G68) → **DXVK-Sarek**. JANGAN kasih gplasync (butuh Vulkan 1.3 + `graphics_pipeline_library` yang Mali tua GA PUNYA).
 
-### DXVK 2.5 (Nov 2024)
-- Memory & resource manager di-rewrite. **Periodic defragmentation**.
-- Software cursor D3D9 (fix banyak game UE3).
-- Sampler pool refactor (UE3 game).
-- Mobile take: **stutter mid-session berkurang** karena defrag jalan background. RAM-konstrain HP dapet boost.
+### Versi official DXVK yang BENERAN ADA (anti-halu)
+- **1.x mentok di 1.10.3** (2 Agu 2022) → langsung lompat **2.0**. **GA ADA 1.11 / 1.11.1** di official MAUPUN Sporif async. Kalau ada yang sebut "DXVK 1.11.1" = HALU.
+- **DXVK-Sarek** punya versi SENDIRI (bukan official): 1.10.4–1.10.9 → **1.11.0** ("Red River") → **1.12.0** ("Late Anniversary", 16 Apr 2026). **GA ADA Sarek 1.11.1** (lompat 1.11.0 → 1.12.0). "Sarek 1.10.3" cuma tag repack bootstrap, rilis asli mulai 1.10.4.
 
-### DXVK 2.6 (Mar 2025)
-- Nvidia Reflex support D3D11 (low latency).
-- Swapchain reworked + MSAA workaround.
-- Mobile take: **MSAA bug yang lama suka bikin black flicker → fixed**. Ga perlu lagi `d3d11.disableMsaa` se-agresif dulu.
+### Era 1.x (2018 – Agu 2022)
+- Foundation D3D9/10/11 → Vulkan. Tanpa requirement Vulkan modern.
+- **async fork (Sporif)** solve shader compile stutter — tapi ini PATCH GENERIK, bukan Mali-khusus. Rilis async terakhir = 2.0, lalu MATI (diganti GPL).
+- Mobile take: **Mali pre-Valhall / Vulkan 1.1 only → pakai DXVK-Sarek** (fork yang nerusin 1.10.x branch tanpa requirement Vulkan 1.3).
 
-### DXVK 2.7 / 2.7.1 (mid 2025) — current stable
-- **`VK_EXT_descriptor_buffer`** support → CPU overhead turun (AMD/Nvidia desktop dulu, mobile menyusul kalau driver dukung).
-- **State cache legacy REMOVED** — pipeline cache via mekanisme baru.
-- Memory defrag default ON di Intel Battlemage/Lunar Lake.
-- Mobile take: **panduan lawas "hapus dxvk.cache file" → STALE buat 2.7+**. File state-cache udah ga ada.
+### DXVK 2.0 (10 Nov 2022)
+- Migrasi meson + **wajib Vulkan 1.3**. Driver mobile lawas ke-cut.
+- **`VK_EXT_graphics_pipeline_library` (GPL)** masuk — solusi RESMI anti-stutter (gantiin async). Compile shader pas load, bukan pas draw.
+- Mobile take: **Adreno tua / Mali pre-Valhall (no Vulkan 1.3) → tetep di Sarek (1.10.x base).**
+
+### DXVK 2.3 (4 Sep 2023)
+- `VK_KHR_present_wait` (input latency turun), spec constants descriptor cache.
+- Awal gplasync (Ph42oN) nge-track dari sini (v2.3-1).
+
+### DXVK 2.4 / 2.4.1 (10 Jul 2024)
+- **D8VK ke-merge** → support D3D8 built-in. **Lupakan d8vk standalone.**
+- Dynamic memory chunk sizing.
+
+### DXVK 2.5 (11 Nov 2024)
+- Memory manager rewrite, **periodic defrag**, hemat VRAM s/d 1GB. Software cursor D3D8/9 (fix UE3).
+- Mobile take: stutter mid-session berkurang.
+
+### DXVK 2.6 (13 Mar 2025)
+- Nvidia Reflex D3D11, swapchain rework + MSAA workaround.
+- Mobile take: black-flicker MSAA lama → fixed.
+
+### DXVK 2.7 / 2.7.1 (Jul–30 Agu 2025)
+- `VK_KHR_maintenance5` wajib, descriptor buffer, **state cache legacy DIHAPUS**.
+- Mobile take: panduan "hapus dxvk.cache" → STALE buat 2.7+ (file-nya udah ga ada).
+
+### DXVK 3.0 (25 Jun 2026) — CURRENT LATEST
+- **Wajib Vulkan 1.4** (driver mobile makin ke-cut — basically SEMUA Mali + mayoritas Adreno GA SANGGUP).
+- Shader compiler rewrite (dxbc-spirv), `VK_EXT_descriptor_heap` default, D3D9 fixed-function ubershaders, frame-limiter bawaan DIHAPUS.
+- Mobile take: **3.0 IRRELEVANT buat 99% HP sekarang** (Vulkan 1.4 belum ada di driver mobile). Jangan rekomendasiin 3.0 ke user Mali/Adreno kecuali dia eksplisit Vulkan 1.4. The412Banner ship `dxvk-3.0.wcp` + `dxvk-gplasync-3.0-1.wcp` cuma buat device bleeding-edge.
 
 ### Mobile decision matrix (DXVK) — **[THEORETICAL]**
-**⚠️ Confidence: matrix ini interpolasi spec Mali + DXVK feature req. BUKAN benchmark database.** Pakai sebagai starting point kalau ga ada `[VERIFIED]` per-game preset di `per-game.md`. Per-game empirical SELALU MENANG.
+**⚠️ Interpolasi spec, BUKAN benchmark DB.** Per-game `[VERIFIED]` di `per-game.md`/`gpu-rules.md` SELALU MENANG.
 
 | Driver Vulkan user | Pakai (theoretical) |
 |---|---|
-| Vulkan 1.0/1.1 (Mali pre-Valhall / Adreno < 6xx) | DXVK 1.7.2 atau 1.10.3 fork async |
-| Vulkan 1.1/1.2 (Mali Valhall awal: G57, G68) | DXVK Sarek 1.10.3 / 1.11.1 |
-| Vulkan 1.2 + GPL ga ada (Mali G610/G715 driver tua) | DXVK Sarek 1.12 |
-| Vulkan 1.3 + GPL ada (Adreno 7xx, Mali G720+, Turnip baru) | DXVK 2.5/2.6/2.7 vanilla |
-| Adreno + adrenotools custom Turnip | DXVK 2.5+ |
+| Vulkan 1.0/1.1 (Mali pre-Valhall / Adreno < 6xx) | DXVK-Sarek (base 1.10.x) atau async lawas 1.10.3 |
+| Vulkan 1.1/1.2 (Mali Valhall awal: G57, G68) | **DXVK-Sarek 1.11.0 / 1.12.0** |
+| Vulkan 1.2 tanpa GPL (Mali G610/G715 driver tua) | DXVK-Sarek 1.12.0 (BCn emu) |
+| Vulkan 1.3 + GPL (Adreno 7xx, Mali G720+, Turnip baru) | DXVK 2.5–2.7 vanilla / gplasync 2.7.1-1 |
+| Adreno + adrenotools custom Turnip | DXVK 2.5+ / gplasync |
+| Vulkan 1.4 (sangat jarang di mobile) | DXVK 3.0 (kalau driver dukung) |
 
-**[REVEALED PREFERENCE]** signal komunitas yang LEBIH KUAT dari matrix di atas: StevenMXZ Winlator-Contents CDN ship `dxvk-11.1-sarek-async.wcp` sebagai default Mali. Maintainer udah test cross-device. Itu data komunitas, bukan teori. Untuk Mali default tanpa data per-game = Sarek 1.10.3-1.12, BUKAN vanilla 2.x.
+**[REVEALED PREFERENCE]** StevenMXZ Winlator-Contents CDN ship `dxvk-11.1-sarek-async.wcp` sebagai default Mali — "11.1" itu **label terpotong dari Sarek 1.11.0** (repo lain nyebutnya `dxvk-sarek-async-1.11.0.wcp`). Mali default tanpa data per-game = **DXVK-Sarek 1.11.0–1.12.0**, BUKAN vanilla 2.x, BUKAN gplasync.
 
-**Empirical override examples (ke-test Noysz):**
-- Helio G99 + GTA V DX10 1024x600 Medium = **DXVK 1.7.2 async** > Sarek 1.12 (BCn emu Sarek over-burden Mali-G57 weak CPU)
+**Empirical override (ke-test Noysz) — [VERIFIED]:**
+- Helio G99 + GTA V DX10 1024x600 Medium = **DXVK 1.7.2** (`dxvk-1.7.2.wcp` di StevenMXZ) > Sarek 1.12 (BCn emu Sarek over-burden Mali-G57 weak CPU). Catatan: "1.7.2" yang Noysz pake itu build ringan; "async" itu label longgar — package StevenMXZ `dxvk-1.7.2.wcp` adalah vanilla 1.7.2.
 
 ---
 

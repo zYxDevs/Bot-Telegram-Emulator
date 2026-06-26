@@ -18,9 +18,10 @@
 
 ### Default stack Mali modern
 - **Driver Vulkan**: Mesa Turnip ga jalan di Mali — pake **driver vendor Mali** (built-in HP) atau **Vortek (Wear/EOA)** kalau emulator support custom driver.
-- **DX wrapper**: **DXVK-Sarek (1.7-1.12 async/dynasync)** — PRIMARY. Sarek = fork DXVK khusus mobile/Mali yg nambal BCn + ClipDistance.
-  - Versi proven: `DXVK 1.7.2 async`, `DXVK 1.7.3 async`, `DXVK 1.12 sarek dynasync`.
-  - Source: `github.com/pythonlover02/DXVK-Sarek`.
+- **DX wrapper**: **DXVK-Sarek** — PRIMARY buat Mali. Fork DXVK khusus GPU tanpa Vulkan 1.3 (nambal BCn + ClipDistance).
+  - **Versi Sarek REAL** (`github.com/pythonlover02/DXVK-Sarek`): 1.10.4–1.10.9, **1.11.0** ("Red River"), **1.12.0** ("Late Anniversary", +dyasync +d7vk +Mali black-screen fix). GA ADA Sarek 1.7.x maupun 1.11.1.
+  - ⚠️ **JANGAN ketuker:** `DXVK 1.7.2 async` / `1.7.3 async` itu **build Sporif/dxvk-async** (`github.com/Sporif/dxvk-async`, archived Nov 2025) — BUKAN Sarek. Build ringan generik, kadang dipake di Mali low-end karena enteng, tapi bukan bagian repo Sarek.
+  - `dynasync` = fitur di Sarek 1.12.0. `sarek-async` = varian Sarek dgn async (StevenMXZ label `dxvk-11.1-sarek-async.wcp` = Sarek 1.11.0).
 - **Wine/Proton**: **Proton-arm64ec** (Proton port khusus ARM64EC). Versi: `Proton-10.0.99-arm64ec`, `wine-10.0-arm64ec`.
 - **CPU translator**:
   - GameHub/BannerHub → **FEX** (versi 202510, 202604, dll — cek release).
@@ -33,11 +34,11 @@
 
 ### Vortek/WineD3D = LEGACY (kapan masih relevan)
 - Game DX8 atau OpenGL doang.
-- Game lawas yg bener-bener crash di DXVK-Sarek (rare — coba Sarek 1.7.2 dulu).
+- Game lawas yg bener-bener crash di DXVK-Sarek (rare — coba build async ringan `dxvk-1.7.2.wcp` dulu).
 - HP super low-end (Helio G35/G37) yg ga sanggup Sarek dynasync.
 
 ### Tier per chipset Mali
-- **Helio G99 / Mali-G57 MC2**: **[VERIFIED — Noysz, GTA V DX10 1024x600 Medium]** DXVK **1.7.2 async** (terbukti lebih mulus daripada Sarek 1.12; BCn emu Sarek over-burden Mali-G57 CPU). + Proton 10 arm64ec + FEX/Box64 PERFORMANCE preset. **[THEORETICAL alt]** Sarek 1.10.3/1.11.1 dari tier matrix — belum ke-bench oleh komunitas Noysz.
+- **Helio G99 / Mali-G57 MC2**: **[VERIFIED — Noysz, GTA V DX10 1024x600 Medium]** DXVK **1.7.2** (package `dxvk-1.7.2.wcp` StevenMXZ — build ringan; "async" label longgar) — terbukti lebih mulus daripada Sarek 1.12.0 (BCn emu Sarek over-burden Mali-G57 CPU lemah). + Proton 10 arm64ec + FEX/Box64 PERFORMANCE preset. **[THEORETICAL alt]** Sarek 1.11.0/1.12.0 dari tier matrix — belum ke-bench komunitas Noysz.
 - **Dimensity 8020-8200 / Mali-G610**: DXVK 1.7.3 async + Proton 10 arm64ec. Medium-high settings.
 - **Dimensity 8400 Ultra / Mali-G720 MC7**: **[VERIFIED]** baseline DXVK 1.7.3 async + Proton-10.0.99-arm64ec + Ludashi 2.9+. **[THEORETICAL]** DXVK 2.5/2.6/2.7 vanilla mestinya jalan (Vulkan 1.3+GPL ada) tapi belum ada bench public. Sampai ada empirical data, default = baseline verified.
 

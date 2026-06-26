@@ -80,7 +80,7 @@ Pattern: Driver Download Manager (Ludashi 2.8+) baca `contents.json` di repo ini
 
 | GPU / Use case | DXVK build |
 |----------------|------------|
-| Mali (Sarek default) | `dxvk-11.1-sarek-async.wcp` (Sarek 1.1 async, naming convention 11.1) |
+| Mali (Sarek default) | `dxvk-11.1-sarek-async.wcp` (= **Sarek 1.11.0** sarek-async; "11.1" itu label terpotong dari 1.11.0, repo lain nyebutnya `dxvk-sarek-async-1.11.0.wcp`) |
 | Mali legacy compat | `dxvk-1.10.3-async.wcp` |
 | Adreno modern (default) | `dxvk-2.7.1-gplasync.wcp` |
 | Adreno + Wine ARM64EC | `dxvk-2.7.1-arm64ec-gplasync.wcp` |
@@ -89,10 +89,11 @@ Pattern: Driver Download Manager (Ludashi 2.8+) baca `contents.json` di repo ini
 | Game old engine | `dxvk-2.4.1.1-gplasync-sp.wcp` (speed pack) |
 
 **Variant suffix glossary:**
-- `async` = old async shader compile (DXVK 1.x)
-- `gplasync` = Graphics Pipeline Library + async (DXVK 2.x, lebih bagus)
+- `async` = patch async lama (Sporif/dxvk-async, DXVK 1.7.2–2.0, ARCHIVED Nov 2025) — shader compile off-thread, anti-stutter
+- `gplasync` = Graphics Pipeline Library + async (Ph42oN, DXVK 2.x). **BUTUH Vulkan 1.3 → buat Adreno/GPU modern, BUKAN Mali tua**
 - `arm64ec` = build kompatibel Wine ARM64EC native binary
-- `sarek` = Mali fork (BCn emulation + ClipDistance strip)
+- `sarek` = fork DXVK 1.10.x buat Mali/GPU tanpa Vulkan 1.3 (BCn emu + ClipDistance strip). Versi: 1.10.4→1.12.0
+- `dyasync`/`dynasync` = async-style di Sarek 1.12.0
 - `sp` = speed pack
 - `fix` = bug-fix patch
 - `leegao` = contributor patch buat spesifik regression
