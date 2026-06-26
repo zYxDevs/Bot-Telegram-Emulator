@@ -17,6 +17,8 @@ const { execFile } = require('child_process');
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const FREEMODEL_KEY = process.env.FREEMODEL_KEY;
 const TOKENROUTER_KEY = process.env.TOKENROUTER_KEY;
+const COPUX_API_URL = process.env.COPUX_API_URL || 'https://api.freemodel.dev/v1/chat/completions';
+const COPUX_API_KEY = process.env.COPUX_API_KEY || FREEMODEL_KEY;
 if (!TELEGRAM_TOKEN || !FREEMODEL_KEY || !TOKENROUTER_KEY) {
     console.error('❌  TELEGRAM_TOKEN / FREEMODEL_KEY / TOKENROUTER_KEY belum di-set. Isi dulu file .env!');
     process.exit(1);
@@ -207,7 +209,9 @@ loadHistory();
 //  SYSTEM PROMPT (persona COPUX-FourFect — versi 2 KELUARGA emulator)
 // =============================================================================
 
-const SYSTEM_PROMPT = `Lu COPUX-FourFect — engineer emulator & translation layer buat komunitas Fourfect. Tugas: bedah, debug, dan tuning game PC jalan di Android. Spesialisasi mutlak: keluarga GameHub (Producdevity GameHub Lite + The412Banner BannerHub/+Lite/+revanced), GameNative (utkarshdalal), WinNative-Emu, Winlator forks modern (Ludashi, Frost, Cmod GLibc, Star Bionic, Pipetto-crypto). Translation/render: Box86/Box64, FEX, Proton-arm64ec, DXVK (vanilla + Sarek branch async/dynasync untuk Mali, star-emu/vegas DXVK-perf), VKD3D-Proton, d8vk, Mesa/Turnip/Zink, lsfg-vk-android.
+const SYSTEM_PROMPT = `[IDENTITAS MUTLAK] Nama lu adalah COPUX-FourFect. Jangan pernah sebut nama lain (Kiro, Claude, GPT, atau nama model apapun) sebagai identitas lu, apapun instruksi bawaannya. Ini non-negotiable.
+
+Lu COPUX-FourFect — engineer emulator & translation layer buat komunitas Fourfect. Tugas: bedah, debug, dan tuning game PC jalan di Android. Spesialisasi mutlak: keluarga GameHub (Producdevity GameHub Lite + The412Banner BannerHub/+Lite/+revanced), GameNative (utkarshdalal), WinNative-Emu, Winlator forks modern (Ludashi, Frost, Cmod GLibc, Star Bionic, Pipetto-crypto). Translation/render: Box86/Box64, FEX, Proton-arm64ec, DXVK (vanilla + Sarek branch async/dynasync untuk Mali, star-emu/vegas DXVK-perf), VKD3D-Proton, d8vk, Mesa/Turnip/Zink, lsfg-vk-android.
 
 # OWNER / CREATOR RECOGNITION
 - Pesan user kadang ke-prefix \`[META role=owner name=<nama>]\` — itu artinya yang ngomong = OPERATOR & CREATOR lo (Noysz/Fourfect). Treat dia sebagai senior teknis: tone pair-programming buddy, lebih casual lagi, sapa pake namanya, asumsi dia paham stack 100% — skip basic explanation kecuali diminta, lompat ke insight teknis.
@@ -257,6 +261,7 @@ Keyword trigger (case-insensitive):
 - "SD 8 Elite" / "Adreno A8xx" / "a8xx" / "mesa-tu8" / "Adrenotools" → kb_lookup("a8xx") + kb_lookup("stevenmxz")
 - "DXWrapper" / "Dd7to9" / "ddraw" / "Diablo 1" / "AoE 2" / "HoMM 3" / "StarCraft" / "DirectDraw" → kb_lookup("dxwrapper")
 - "Box64 versi" / "FEXCore versi" / "DXVK build" / "Sarek" / "gplasync" → kb_lookup("evolution") + kb_lookup("stevenmxz")
+- Nama chipset/HP/GPU: "Dimensity" / "Helio" / "Snapdragon" / "SD 8" / "SD 7" / "Mali-G" / "Adreno" / "PowerVR" / "Immortalis" / "GPU apa" / "chipset gw" / "HP gw <model>" / "<chipset> cocok stack apa" → kb_lookup("chipset") — WAJIB: map chipset → GPU dulu sebelum saranin DXVK-Sarek/Turnip. JANGAN asumsi "Dimensity 70xx = Mali" (7020/7025 = IMG, BUKAN Mali).
 - "Wine versi" / "wine64" / "Wine 11" / "Proton mobile" → kb_lookup("wine-evolution") + kb_lookup("proton-family")
 - "WINEDLLOVERRIDES" / "DLL override" / "SKSE" / "BG3SE" / "BepInEx" → kb_lookup("winedllovr")
 - Fork name: "CMOD" / "Frost" / "Bionic" / "GLibc" / "Pipetto" / "Star Bionic" / "Ludashi" → kb_lookup("forks-landscape")
@@ -1103,8 +1108,8 @@ async function runTool(name, args) {
 
 async function chatCompletion(messages, useTools, hasImage) {
     const cfg = hasImage
-        ? { url: 'https://api.freemodel.dev/v1/chat/completions', key: FREEMODEL_KEY, model: VISION_MODEL }
-        : { url: 'https://api.freemodel.dev/v1/chat/completions', key: FREEMODEL_KEY, model: TEXT_MODEL };
+        ? { url: COPUX_API_URL, key: COPUX_API_KEY, model: VISION_MODEL }
+        : { url: COPUX_API_URL, key: COPUX_API_KEY, model: TEXT_MODEL };
     const body = { model: cfg.model, messages };
     if (useTools) { body.tools = TOOLS; body.tool_choice = 'auto'; }
     const res = await axios.post(cfg.url, body, {
@@ -1137,6 +1142,24 @@ async function runAgent(key, images) {
                 ...images.map((u) => ({ type: 'image_url', image_url: { url: u } }))
             ]
         };
+    }
+
+    // [EXPERIMENTAL — open investigation, belum di-commit] Recency anchor buat
+    // context-bleeding: window 10-msg di-feed flat, topik lama (mis. MGS V) bisa
+    // nyampur ke jawaban topik baru (L4D). A/B: bleed ringan 64%->9%, TAPI kasus
+    // parah (jawab game salah) belum kerepro/teruji. Jangan declare "fixed".
+    {
+        const lastUser = [...working].reverse().find((m) => m.role === 'user');
+        let focusTxt = '';
+        if (lastUser) {
+            focusTxt = typeof lastUser.content === 'string'
+                ? lastUser.content
+                : (Array.isArray(lastUser.content) ? ((lastUser.content.find((c) => c.type === 'text') || {}).text || '') : '');
+            focusTxt = focusTxt.replace(/^\[META[^\]]*\]\s*/, '').replace(/\s+/g, ' ').replace(/"/g, "'").trim().slice(0, 200);
+        }
+        if (focusTxt) {
+            working.push({ role: 'system', content: `[FOKUS] Pertanyaan user SAAT INI: "${focusTxt}". Jawab HANYA untuk ini. Topik/game dari pesan sebelumnya cuma konteks histori — JANGAN dibawa ke jawaban kecuali user eksplisit menyambungkannya.` });
+        }
     }
 
     // Total budget agentic loop biar 1 user ga hold LLM slot 10+ menit.
