@@ -10,7 +10,7 @@ Bot-nya gw kunci ke domain emulator doang. Nanya resep masakan atau soal coding 
 
 Format jawaban crash dipaksa terstruktur: `Crash di L<X> — <komponen>. Root cause: <mekanisme>. Fix: <langkah>.` Gw capek baca jawaban AI yang ngambang nggak jelas root cause-nya apa, jadi format ini gw paksa dari prompt level.
 
-LLM-nya dual-route: **vision via freemodel.dev** (GPT-5.5) buat baca screenshot/foto, **text via TokenRouter** (MiniMax-M3) buat reasoning panjang. Routing otomatis berdasarkan ada gambar atau enggak — ga perlu user pilih manual.
+LLM-nya **freemodel.dev (GPT-5.5)** buat dua-duanya — vision (baca screenshot/foto/frame video) sama text (reasoning panjang). Dulu text gw route ke TokenRouter (MiniMax-M3), tapi sejak Juni 2026 TokenRouter berhenti ngasih free token jadi semua gw pindah ke freemodel. Routing model otomatis: ada gambar → vision, ga ada → text. Ga perlu user pilih manual.
 
 ## Fitur
 
@@ -18,9 +18,23 @@ LLM-nya dual-route: **vision via freemodel.dev** (GPT-5.5) buat baca screenshot/
 
 `/cari <keyword>` atau nanya natural langsung, bot bakal trigger search sendiri kalau kebutuhan data terbaru. Urutan fallback: Serper → Tavily → DuckDuckGo. DDG nggak butuh API key jadi minimal selalu ada yang jalan.
 
+Buat baca isi halaman (`web_fetch`), bot coba lewat **Scrapling microservice** dulu — fetcher anti-bot (Playwright stealth) yang bisa nembus Cloudflare/halaman yang nolak request biasa. Kalau service-nya mati, otomatis fallback ke `axios`. Service-nya proses Python kepisah (`scrapling_service.py`), bind `127.0.0.1` doang, dan SSRF guard-nya tetep jalan di sisi bot SEBELUM URL dioper ke Scrapling.
+
 ### Vision
 
-Kirim screenshot error, bot baca isinya (handle magic-byte detection karena Telegram suka kirim MIME `application/octet-stream` yang ngaco). Paste link YouTube, bot ambil 6 frame thumbnail pake yt-dlp + ffmpeg buat dianalisa — kepake banget buat video tutorial yang errornya kelihatan di gambar.
+Kirim screenshot error, bot baca isinya (handle magic-byte detection karena Telegram suka kirim MIME `application/octet-stream` yang ngaco). Kepake banget buat error/setting/log emulator yang kelihatan di gambar.
+
+### Nonton video
+
+Bot bisa "nonton" video beneran — bukan cuma liat thumbnail. Pipeline-nya: `yt-dlp` download → `ffmpeg` ambil 6 frame + ekstrak audio 16kHz → **whisper.cpp** transcribe audionya → frame (visual) + transcript (audio) dua-duanya di-feed ke LLM. Jadi bot tau yang kelihatan DAN yang dibilang di video.
+
+Sumber yang didukung:
+
+- **Upload video Telegram** (≤20MB) — kirim file video / video_note (yang bulet) langsung, bot proses.
+- **Link YouTube** — best-effort. Kalau ada `yt-cookies.txt` valid → frame + transcript. Kalau IP server keblok YouTube (sering) → jatuh ke thumbnail + judul, dan bot jujur bilang "ini cuma dari thumbnail".
+- **Link video non-YT** (tiktok/vimeo/mp4/dll) — allowlist host + ekstensi, lewat SSRF guard dulu baru di-download.
+
+Transcript dipotong di `MAX_AUDIO_SEC` (default 180s) — whisper di HP ARM lambat, jadi video panjang ga bikin bot ngegantung. Kerja ffmpeg/whisper di-semaphore (`MAX_CONCURRENT_VIDEO`, default 1) biar ga ngepeg CPU HP.
 
 ### Sesi
 
@@ -46,7 +60,8 @@ Admin bisa `/reloadkb` buat reload tanpa restart proses.
 
 ### Security guards
 
-- **SSRF** — `webFetch` blokir RFC1918/loopback/link-local/cloud metadata + DNS-pin (anti-rebinding) + manual redirect validation (cap 3 hop).
+- **SSRF** — `webFetch` blokir RFC1918/loopback/link-local/cloud metadata + DNS-pin (anti-rebinding) + manual redirect validation (cap 3 hop). Guard ini jalan duluan SEBELUM URL dioper ke Scrapling (Playwright resolve DNS sendiri, jadi tanpa gate ini IP-pin ke-bypass). Service Scrapling juga re-reject IP private sendiri (defense-in-depth) + bind `127.0.0.1` only.
+- **Video/exec** — yt-dlp/ffmpeg/whisper dipanggil via `execFile` (no shell, no injection). yt-dlp di-sandbox: `--no-playlist --no-exec --max-filesize --match-filter '!is_live'` biar live-stream/video raksasa ga nahan slot sampe timeout. Download video stream-to-disk + byte-counter (anti OOM), temp dir mkdtemp + auto-cleanup di `finally`.
 - **Prompt injection** — strip `[META ...]` tag dari user input sebelum di-concat ke history (anti owner-spoof).
 - **Photo OOM** — cap 2MB/foto, base64 alloc-aware buat HP RAM ketat.
 - **Shutdown** — async save di-await dengan 5s timeout sebelum exit; atomic rename biar partial state ga korup file.
@@ -61,6 +76,7 @@ Admin bisa `/reloadkb` buat reload tanpa restart proses.
 | `/reset` | semua | private + group | clear history sesi |
 | `/stats` | admin | hidden | statistik user, top-N, breakdown chat type |
 | `/reloadkb` | admin | hidden | reload KB cache dari disk |
+| `/promotefix` | admin | hidden | baca antrian `/addfix` → sanitize → tulis ke Community KB |
 
 Command list di `/` menu Telegram di-scope per chat type (private vs group) lewat `setMyCommands`. Setup via `node scripts/setup-bot-metadata.js` — idempotent, bisa di-rerun kapan aja.
 
@@ -79,12 +95,34 @@ Semua cap di bawah ini env-tunable. Default-nya gw set buat HP 4-6GB RAM:
 | `MAX_FETCH_BYTES` | 4MB | — | — |
 | `SESSION_TTL_MS` | 6 jam | RAM ketat, ke 2-3 jam | — |
 | `SAVE_DEBOUNCE_MS` | 5000 | — | I/O lambat, ke 10000 |
+| `MAX_VIDEO_BYTES` | 20MB | — | — (cap Telegram getFile ~20MB) |
+| `MAX_AUDIO_SEC` | 180 | HP lemot, ke 60-120 | server, ke 300+ |
+| `MAX_CONCURRENT_VIDEO` | 1 | — | server, ke 2-3 |
+| `WHISPER_BIN` | `/root/whisper.cpp/build/bin/whisper-cli` | path whisper.cpp | — |
+| `WHISPER_MODEL` | `.../ggml-base.bin` | model lebih kecil (tiny) | model lebih akurat (small) |
+| `SCRAPLING_FETCH_URL` | `http://127.0.0.1:8765/fetch` | kosongin = disable scrapling | — |
 
 Detail di `.env.example`.
 
 ## Install
 
-Butuh Node 18+, git, PM2 (`npm install -g pm2`). Opsional `yt-dlp` + `ffmpeg` kalau mau fitur YouTube extractor.
+Butuh Node 18+, git, PM2 (`npm install -g pm2`).
+
+Buat fitur nonton video (opsional tapi recommended):
+
+- `yt-dlp` + `ffmpeg` — download + frame/audio extract.
+- **whisper.cpp** — transcribe audio. Build sekali: `git clone https://github.com/ggml-org/whisper.cpp && cd whisper.cpp && cmake -B build && cmake --build build` lalu download model `bash ./models/download-ggml-model.sh base`. (Catatan: di aarch64/Termux `faster-whisper` ga jalan karena `ctranslate2` ga punya wheel ARM — makanya pake whisper.cpp yang compile native.)
+
+Buat `web_fetch` anti-bot (opsional) — service Python Scrapling:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install "scrapling[fetchers,ai]"
+.venv/bin/scrapling install      # download chromium playwright
+pm2 start .venv/bin/python --name copux-scrapling --interpreter none -- scrapling_service.py
+```
+
+Kalau ga di-setup, `web_fetch` otomatis fallback ke axios biasa.
 
 ```bash
 git clone https://github.com/Noysz/Bot-Telegram.git
@@ -99,7 +137,7 @@ Yang wajib diisi:
 ```
 TELEGRAM_TOKEN=
 FREEMODEL_KEY=
-TOKENROUTER_KEY=
+TOKENROUTER_KEY=     # legacy — udah ga dipake (TokenRouter mati), tapi startup masih ngecek ada-nya. Isi apa aja.
 ```
 
 Opsional (kosongin aja kalau ga punya, fallback ke DDG):
@@ -119,6 +157,8 @@ Jalanin:
 
 ```bash
 pm2 start bot.js --name copux
+# opsional: service scrapling (kalau mau web_fetch anti-bot)
+pm2 start .venv/bin/python --name copux-scrapling --interpreter none -- scrapling_service.py
 pm2 save
 pm2 startup
 ```
@@ -138,7 +178,7 @@ pm2 logs copux --lines 50
 
 ## Yang masih jelek
 
-Single file ~1.1k baris, masih kebaca tapi udah mulai sesak — kalau scope nambah lagi gw harus pecah ke `handlers/`, `services/`, `prompts/`.
+Single file ~1.9k baris, makin sesak — udah waktunya gw pecah ke `handlers/`, `services/`, `prompts/`. Belum sempet.
 
 State (rate log, in-flight, stats) di RAM doang, restart ya hilang. History-nya aman karena ke disk, tapi yang lain nggak.
 
@@ -156,7 +196,8 @@ Single tenant — satu instance cuma buat satu bot token. Mau multi-bot, harus r
 
 ```
 Bot-Telegram/
-├── bot.js                          # semuanya ada di sini — handler, AI call, persona, vision, search, tools
+├── bot.js                          # semuanya ada di sini — handler, AI call, persona, vision, video, search, tools
+├── scrapling_service.py            # microservice web_fetch anti-bot (Python, localhost-only)
 ├── scripts/
 │   └── setup-bot-metadata.js       # one-off: push nama/desc/commands ke Bot API
 ├── package.json
@@ -166,17 +207,17 @@ Bot-Telegram/
 ├── CHANGELOG.md
 └── data/
     ├── history.json
-    ├── addfix-queue.json           # antrian submission user via /addfix
+    ├── addfix.jsonl                # antrian submission user via /addfix (di-proses /promotefix)
     └── kb/                         # 20+ file knowledge base curated, di-track
 ```
 
 ## Stack
 
-Node 18+, `node-telegram-bot-api` (polling), `axios`, `dotenv`, PM2. LLM dual-route: **freemodel.dev** (vision, GPT-5.5) + **TokenRouter** (text, MiniMax-M3). Search: Serper/Tavily/DDG. Media: yt-dlp + ffmpeg (opsional).
+Node 18+, `node-telegram-bot-api` (polling), `axios`, `dotenv`, PM2. LLM: **freemodel.dev** (GPT-5.5, vision + text). Search: Serper/Tavily/DDG. Video: yt-dlp + ffmpeg + whisper.cpp (opsional). Web_fetch anti-bot: Scrapling (Python service, opsional).
 
 ## Mau dibenerin
 
-- Pecah `bot.js` jadi modul (sekarang ~1.3k baris)
+- Pecah `bot.js` jadi modul (sekarang ~1.9k baris)
 - Rate limit per-grup (saat ini per-user, grup gede bisa kena 429 upstream)
 - Webhook mode
 - Test suite (Jest/Vitest) — saat ini smoke test manual per fix
