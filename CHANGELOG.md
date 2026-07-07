@@ -6,6 +6,21 @@ Format: keep-a-changelog ringan. Tanggal absolut. Versi major = kapabilitas baru
 
 ## [Unreleased] — 2026-07-07
 
+### Compatibility Layer Verification Suite
+
+Modul cerdas pembantu ekosistem sandbox Android-Wine untuk mendeteksi malfungsi file konfigurasi dan menyalin otomatis sub-aset `.ini`. Berjalan asinkronus dengan beban terpisah ke microservice Python.
+
+**Added:**
+- `bot.js`: Event listener `bot.on('document')` baru untuk auto-scan file `.ini` & `steam_appid.txt` on-the-fly di buffer Telegram (Regex Heuristics).
+- `bot.js`: Command router `/dlc` untuk mengirim payload ID Steam dan menampilkan hasil _generation_ `.ini`.
+- `bot.js`: Helper global `escapeSafeMd` yang membersihkan string agar tidak terjadi error _MarkdownV2 parse_.
+- `scrapling_service.py`: Endpoint `POST /api/v1/asset-mapping` sebagai microservice *concurrent fetch* via `httpx` dan `asyncio.gather` ke API publik Steam (max 15 request paralel).
+- `data/kb/winlator_override.md`: Panduan statik bagi pengguna Winlator/GameHub tentang cara melakukan _Library Overrides_ (`Native then Builtin`) pada `steam_api`.
+
+**Removed:**
+- `bot.js`: Fungsi pendeteksi folder lokal `/cek_folder` yang dinilai berbahaya bagi _I/O path traversal_ digantikan oleh metode on-the-fly document audit.
+
+
 ### KB diperluas — DRM Bypass & Steam Error Troubleshooting
 
 Menambahkan kemampuan bagi COPUX untuk memandu user yang mengalami masalah dengan game original/Steam di emulator Winlator akibat proteksi DRM.

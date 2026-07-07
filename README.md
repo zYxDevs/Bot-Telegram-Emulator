@@ -52,6 +52,13 @@ Ini yang paling penting karena jalan di HP. Concurrency LLM di-semaphore (defaul
 
 Kirim dokumen text/log/json/code (≤1MB), bot baca isinya buat konteks reply. Binary file (PDF, zip, image renamed) di-skip pakai heuristik printable-ratio biar ga blowup RAM.
 
+### Compatibility Layer Verification Suite
+
+Fitur asisten khusus emulasi Android-Wine (Winlator, GameHub). Bot menyediakan dua alur bantuan teknis:
+- **Auto-Generator Sub-Aset Emulasi (`/dlc <appid>`)**: Tembak command ini dan microservice Python bot bakal nge-scrape API publik Steam secara concurrent (max 15 data) untuk me-generate struktur `.ini` valid berisi list nama DLC. Langsung copas aja ke dalam folder game.
+- **On-the-Fly Config Audit**: Upload file konfigurasi (misal `steam_emu.ini`, `Ali213.ini`, `HLM.ini`, atau `steam_appid.txt`) lewat Telegram, bot bakal baca langsung secara asinkronus dari memori dan ngasih report apa `AppId` dan `Language` config lu bener, kurang, atau korup. Dilengkapi instruksi _Library Override_ (Native then Builtin) kalau emulator lu bermasalah nyangkut di `drive_c`.
+
+
 ### Knowledge Base
 
 `data/kb/*.md` — 20+ file curated tentang Winlator forks (REF4IK, StevenMXZ Ludashi, GameHub, BannerHub), Wine/Proton context, Box64/FEX evolution, DXVK conf, Adreno/Mali stack, preset per-game ground-truth. Bot baca via `kb_lookup` tool sebelum jawab — kalau di KB udah ada, prioritas di atas web search (anti-halu).
