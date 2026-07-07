@@ -1,3 +1,18 @@
+## [2.3.0] — 2026-07-07
+
+### Automated Hunting Module v2 & Telegram Sync
+
+Pembaruan skala penuh pada modul perburuan tautan distribusi _Pre-installed/Portable_ dan sinkronisasi _Bot Command_ Telegram. Menggantikan _crawler_ Regex lama dengan Parser BeautifulSoup4.
+
+**Added:**
+- `scrapling_service.py`: Integritas ekstraksi dengan pustaka murni `BeautifulSoup4` (`bs4`) di tingkat _microservice_ untuk menghentikan _false positives_ pada halaman navigasi (seperti Login/Register).
+- `scrapling_service.py`: _Relevancy Check Algorithm_. Modul sekarang mewajibkan _title_ hasil memiliki setidaknya 1 kata kunci pencarian yang sama untuk mendepak _game_ "acak".
+- `bot.js`: Sinkronisasi Menu Telegram Otomatis (via `bot.setMyCommands`) yang berjalan pada saat _startup_. Terbagi dua berdasarkan _scope_: untuk audiens umum (Publik) dan akses eksklusif Admin (`ADMIN_IDS`).
+
+**Changed:**
+- `bot.js`: Modul Interseptor `/hunting` sekarang mencegat penuh seluruh kueri pencarian rilis _game_ dan melimpahkannya langsung ke `scrapling_service.py` untuk mengeliminasi hadangan _moral filtering_ (Penolakan AI).
+- `scrapling_service.py`: Format _output_ dibersihkan dari penggunaan `backticks` pada link agar tautan kembali menjadi format _hyperlink_ yang responsif saat diklik. Resolusi URL _relative_ otomatis diterjemahkan menjadi _absolute link_ (menyelamatkan kegagalan tautan dari SteamRIP).
+
 # Changelog
 
 Format: keep-a-changelog ringan. Tanggal absolut. Versi major = kapabilitas baru, minor = polish.
