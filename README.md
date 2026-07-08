@@ -12,8 +12,34 @@ Format jawaban crash dipaksa terstruktur: `Crash di L<X> — <komponen>. Root ca
 
 LLM-nya **freemodel.dev (GPT-5.5)** buat dua-duanya — vision (baca screenshot/foto/frame video) sama text (reasoning panjang). Dulu text gw route ke TokenRouter (MiniMax-M3), tapi sejak Juni 2026 TokenRouter berhenti ngasih free token jadi semua gw pindah ke freemodel. Routing model otomatis: ada gambar → vision, ga ada → text. Ga perlu user pilih manual.
 
-## Fitur
 
+## 🚀 UPDATE COPUX TERBARU (v2.1)
+
+Bot telah menerima peningkatan fitur besar-besaran untuk pengalaman yang lebih mulus dan canggih!
+
+- **🎮 1. Game Hunter (`/hunting`)**
+  Kini kamu bisa langsung mencari rilis game PC (Pre-installed / Portable yang tinggal main tanpa instalasi) hanya dengan perintah `/hunting [nama game]`. Bot secara otomatis akan menyisir 5 sumber tepercaya dan memberikan tautan langsung untukmu!
+- **🛡️ 2. Bypass Sensor & Anti-Penolakan**
+  Kesal bot suka menolak menjawab saat ditanya soal link game? Sistem telah dirombak! Kueri pencarian game kini langsung di-eksekusi secara instan tanpa perlu melewati hadangan penyaringan moral AI.
+- **🎯 3. Pencarian Akurat & Anti-Sampah**
+  Sistem filter baru menjamin hasil pencarian hunting sangat relevan. Tidak ada lagi hasil nyasar ke halaman "Login", "Register", atau memunculkan game acak yang tidak sesuai dengan yang kamu cari.
+- **🔗 4. Tautan Ramah Klik**
+  Seluruh output tautan game dan web telah diperbaiki formatnya. Tautan kini otomatis berwarna biru dan bisa langsung kamu klik tanpa harus repot copy-paste.
+- **⚙️ 5. Menu Pintasan Cerdas Otomatis**
+  Tidak perlu lagi menghafal perintah! Cukup ketik garis miring (`/`) pada kolom obrolan, dan Telegram akan otomatis memunculkan daftar fitur lengkap bot yang bisa langsung kamu pilih. (Tutup lalu buka kembali Telegram jika menu belum muncul).
+- **🛠️ 6. Steam DRM Auto-Bypass & Config Auditor**
+  Fitur asisten pintar terbaru untuk para gamer PC & Emulator (Winlator)! Cukup unggah file konfigurasi game kamu (seperti `steam_emu.ini`, `steam_appid.txt`, atau `Ali213.ini`) ke kolom obrolan, dan bot akan langsung melakukan hal berikut:
+  - **🩺 Audit Otomatis**: Memeriksa file kamu dari kerusakan parameter, AppID, hingga masalah zona bahasa.
+  - **🔓 DLC Config Generator**: Meracik file unlocker DLC secara otomatis (standar CreamAPI/Goldberg) lengkap dengan nama asli dari Steam Store via perintah `/dlc <appid>`.
+  - **🍷 Pendeteksi Lingkungan Emulator**: Mengetahui secara otomatis jika kamu sedang berada di lingkungan Winlator (berbasis `drive_c`) dan langsung memberikan panduan akurat untuk Winecfg Override agar game bisa jalan lancar tanpa crash.
+- **👁️ 7. Smart Vision & Analisis Screenshot**
+  Kirim screenshot error Winlator, bot langsung baca dan analisis penyebab crash secara akurat.
+- **🎬 8. AI Video Watcher**
+  Kirim link video YouTube/Tutorial, bot akan otomatis download, nonton, ekstrak audio (whisper.cpp), dan berikan rangkuman cerdas.
+
+---
+
+## Fitur Lengkap
 ### Search
 
 `/cari <keyword>` atau nanya natural langsung, bot bakal trigger search sendiri kalau kebutuhan data terbaru. Urutan fallback: Serper → Tavily → DuckDuckGo. DDG nggak butuh API key jadi minimal selalu ada yang jalan.
@@ -114,26 +140,9 @@ Semua cap di bawah ini env-tunable. Default-nya gw set buat HP 4-6GB RAM:
 
 Detail di `.env.example`.
 
-## Install
+## Install & Setup Cepat
 
-Butuh Node 18+, git, PM2 (`npm install -g pm2`).
-
-Buat fitur nonton video (opsional tapi recommended):
-
-- `yt-dlp` + `ffmpeg` — download + frame/audio extract.
-- **whisper.cpp** — transcribe audio. Build sekali: `git clone https://github.com/ggml-org/whisper.cpp && cd whisper.cpp && cmake -B build && cmake --build build` lalu download model `bash ./models/download-ggml-model.sh base`. (Catatan: di aarch64/Termux `faster-whisper` ga jalan karena `ctranslate2` ga punya wheel ARM — makanya pake whisper.cpp yang compile native.)
-
-Buat `web_fetch` anti-bot (opsional) — service Python Scrapling:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install "scrapling[fetchers,ai]"
-.venv/bin/scrapling install      # download chromium playwright
-pm2 start .venv/bin/python --name copux-scrapling --interpreter none -- scrapling_service.py
-```
-
-Kalau ga di-setup, `web_fetch` otomatis fallback ke axios biasa.
-
+### 1. Kloning Repositori & Install Dependensi
 ```bash
 git clone https://github.com/Noysz/Bot-Telegram.git
 cd Bot-Telegram
@@ -141,6 +150,23 @@ npm install
 cp .env.example .env
 nano .env
 ```
+
+### 2. Setup Scrapling Microservice (Opsional tapi Wajib untuk /hunting)
+Service ini menangani Web Fetch dan Game Hunter (`/hunting`). Jika tidak di-setup, bot akan fallback ke metode reguler.
+```bash
+python3 -m venv .venv
+.venv/bin/pip install "scrapling[fetchers,ai]"
+.venv/bin/scrapling install      # download chromium playwright
+pm2 start .venv/bin/python --name copux-scrapling --interpreter none -- scrapling_service.py
+```
+
+> 💡 **Tes Microservice dengan cURL (Terminal):**
+> Kamu bisa langsung mengetes apakah fitur hunting berjalan normal di lokal dengan perintah cURL berikut:
+> ```bash
+> curl -s -X POST http://127.0.0.1:8765/api/v1/hunt-game \
+>   -H "Content-Type: application/json" \
+>   -d '{"query": "elden ring"}'
+> ```
 
 Yang wajib diisi:
 
