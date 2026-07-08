@@ -30,3 +30,11 @@ yt-cookies.txt
 __pycache__/
 *.bak.*
 _harness_once.js
+
+# Scratch test/benchmark artifacts — never commit
+test_*.py
+test_*.html
+benchmark_*.py
+*_test.html
+download/
+copux_logs.txt
