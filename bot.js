@@ -276,6 +276,15 @@ function recordError(source, err) {
     while (LAST_ERRORS.length > 25) LAST_ERRORS.shift();
 }
 
+function isRecoverableTelegramRejection(err) {
+    const code = err && err.code ? String(err.code) : '';
+    const body = err && err.response && err.response.body ? err.response.body : {};
+    const description = String(body.description || (err && err.message) || '');
+    return code === 'ETELEGRAM'
+        && Number(body.error_code || 0) === 400
+        && /can't parse entities|message is not modified/i.test(description);
+}
+
 function recordLlmEvent(event) {
     LLM_EVENTS.push({ ts: Date.now(), ...event });
     while (LLM_EVENTS.length > 30) LLM_EVENTS.shift();
@@ -660,6 +669,11 @@ process.on('SIGTERM', () => { shutdown('SIGTERM'); });
 
 // Global crash guard — jangan biarin bot mati gara2 1 promise reject yg lolos.
 process.on('unhandledRejection', (reason) => {
+    if (isRecoverableTelegramRejection(reason)) {
+        recordError('telegram-recoverable', reason);
+        console.error('⚠️  Telegram recoverable rejection:', reason && reason.message ? reason.message : reason);
+        return;
+    }
     console.error('⚠️  unhandledRejection:', reason && reason.stack ? reason.stack : reason);
     try { saveHistory(); } catch (_) {}
     process.exit(1);
