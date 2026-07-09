@@ -1506,10 +1506,9 @@ bot.on('message', async (msg) => {
             );
             
             if (response.data.ok && response.data.content) {
-                let sanitizedText = escapeSafeMd(response.data.content);
-                // Pulihkan elemen formatting agar dapat dirender oleh MarkdownV2
-                sanitizedText = sanitizedText.replace(/\\\*/g, '*').replace(/\\`/g, '`').replace(/\\_/g, '_');
-                return bot.sendMessage(chatId, sanitizedText, { parse_mode: 'MarkdownV2', disable_web_page_preview: true });
+                // Fallback rendering: Coba kirim pakai Markdown (V1) yang lebih rileks
+                // Kalau error, sendSafe otomatis bakal fallback ke plain text.
+                return sendSafe(chatId, response.data.content, { disable_web_page_preview: true });
             } else {
                 return bot.sendMessage(chatId, "❌ Matriks data tidak ditemukan di parameter domain indeks Pre\\-installed FMHY\\.", { parse_mode: 'MarkdownV2' });
             }
