@@ -1,4 +1,4 @@
-[VERIFIED]
+[VERIFIED] - Sumber: Komunitas SteamAutoCracker
 # Steam DRM Bypass & Emulation Tools
 Referensi teknis berdasarkan repository iMSteam dan SteamAutoCracker.
 

@@ -1,4 +1,4 @@
-[VERIFIED]
+[VERIFIED] - Sumber: r/PiratedGames Megathread
 # Game Piracy & Hunting Sites Guide
 Berdasarkan referensi r/PiratedGames Megathread dan privateersclub/wiki.
 

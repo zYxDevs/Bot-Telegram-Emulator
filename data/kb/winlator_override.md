@@ -1,46 +1,47 @@
+[VERIFIED] - Sumber: Pengujian Komunitas Winlator
 # Panduan "Wine Library Override" (Winlator & GameHub)
 
-Dokumentasi taktis ini memandu Anda dalam melakukan *override* pustaka sistem (Wine Library Override) pada emulator Winlator atau GameHub di Android. Tujuan utama konfigurasi ini adalah memastikan berkas *crack* atau emulator *steam_api* bawaan dari permainan pre-installed dieksekusi dengan benar sebelum mencoba memuat pustaka dari sistem operasi Wine itu sendiri.
+Dokumentasi ini memandu Anda dalam melakukan *override* pustaka sistem (Wine Library Override) pada emulator Winlator atau GameHub di Android. Tujuannya memastikan berkas *crack* atau emulator *steam_api* dieksekusi dengan benar sebelum memuat pustaka bawaan Wine.
 
 ---
 
 ## ⚠️ CATATAN KAKI EDUKASI EKSPLISIT (SANGAT PENTING)
 
-Karena semua unduhan permainan dari indeks agregasi kami (SteamRIP, SteamGG, GameBounty, AnkerGames, UnionCrax) adalah berkas berjenis **PORTABLE** atau **PRE-INSTALLED (Direct Play)**:
+Karena banyak unduhan permainan dari indeks agregasi (SteamRIP, SteamGG, OvaGames, GOG-Games, ElAmigos) adalah berkas berjenis **PORTABLE** atau **PRE-INSTALLED (Direct Play)**:
 
-1. **TIDAK PERLU INSTALASI:** Anda sama sekali **tidak perlu** mencari atau menjalankan berkas `.exe installer` (seperti `setup.exe` atau `install.exe`). Permainan sudah siap dimainkan.
-2. **EKSTRAKSI SEMPURNA:** Anda **WAJIB** mengekstrak seluruh isi berkas arsip (ZIP/RAR/7z) secara utuh menggunakan aplikasi pengarsipan murni Android (seperti ZArchiver, RAR, atau WinRAR) **sebelum** memasukkannya ke dalam Winlator atau melakukan konfigurasi di bawah ini. Jangan pernah mencoba mengekstrak file dari dalam *container* emulator Windows.
+1. **TIDAK PERLU INSTALASI:** Anda sama sekali **tidak perlu** mencari berkas `.exe installer`. Permainan sudah siap dimainkan.
+2. **EKSTRAKSI SEMPURNA:** Anda **WAJIB** mengekstrak seluruh isi berkas arsip (ZIP/RAR/7z) secara utuh menggunakan aplikasi pengarsipan Android murni (seperti ZArchiver, RAR) **sebelum** memasukkannya ke dalam Winlator. Jangan ekstrak dari dalam *container* emulator Windows karena bisa korup atau lambat.
 
 ---
 
-## Langkah-langkah Taktis Library Override
+## Langkah-langkah Override (Cara Winlator / Environment Variables)
 
-Ikuti instruksi berikut untuk mengatur *override* pustaka `steam_api` dan `steam_api64` ke mode **Native then Builtin**:
+Di Winlator, cara paling handal dan anti-gagal untuk melakukan override adalah melalui **Environment Variables**, bukan lewat menu `winecfg` biasa.
 
 1. **Buka Konfigurasi Container:**
-   Jalankan aplikasi Winlator atau GameHub di perangkat Android Anda. Pilih *container* (wadah OS) yang akan Anda gunakan untuk menjalankan permainan, lalu masuk ke menu **Settings** (Pengaturan) atau **Wine Configuration** (`winecfg`).
+   Jalankan aplikasi Winlator. Pada menu utama, klik titik tiga di container Anda lalu pilih **Edit**.
 
-2. **Akses Tab Libraries:**
-   Pada jendela *Wine Configuration* (`winecfg`), arahkan ke tab **Libraries**.
+2. **Akses Tab Environment Variables:**
+   Gulir/geser tab ke menu **Environment Variables**.
 
-3. **Tambahkan steam_api:**
-   - Pada kolom isian bertuliskan *"New override for library"*, ketik secara manual: `steam_api` (tanpa tanda kutip).
-   - Tekan tombol **Add** (Tambah).
+3. **Tambahkan Variabel:**
+   Tambahkan variabel baru atau edit variabel `WINEDLLOVERRIDES` (jika sudah ada).
+   - Masukkan *Name*: `WINEDLLOVERRIDES`
+   - Masukkan *Value*: `steam_api=n,b;steam_api64=n,b`
+   
+   *(Keterangan: `n,b` berarti Native then Builtin. Titik koma `;` memisahkan tiap DLL. Jangan pakai spasi)*
 
-4. **Tambahkan steam_api64:**
-   - Kembali pada kolom isian *"New override for library"*, ketik secara manual: `steam_api64` (tanpa tanda kutip).
-   - Tekan tombol **Add** (Tambah).
+4. **Simpan dan Terapkan:**
+   Klik tombol centang / Save. Mulai sekarang semua game di container tersebut akan menggunakan `steam_api.dll` bawaan crack dari game-nya, bukan buatan Wine.
 
-5. **Atur ke 'Native then Builtin':**
-   - Cari dan klik `steam_api` pada daftar *"Existing overrides"* di bawahnya.
-   - Klik tombol **Edit**.
-   - Pilih opsi radio: **Native then Builtin**.
-   - Klik **OK**.
-   - Ulangi langkah yang sama untuk `steam_api64`: klik `steam_api64` dari daftar, pilih **Edit**, atur ke **Native then Builtin**, dan klik **OK**.
+## Alternatif Lewat winecfg (GameHub / Cara Klasik)
 
-6. **Terapkan Perubahan:**
-   - Klik **Apply** lalu **OK** untuk menutup jendela `winecfg`.
-   - Jalankan file `.exe` utama permainan Anda dari dalam *container* yang telah dikonfigurasi.
+Jika Anda tidak bisa memakai Environment Variables, gunakan `winecfg`:
+1. Buka *winecfg* (Start Menu -> System Tools -> Wine Configuration).
+2. Pindah ke tab **Libraries**.
+3. Ketik `steam_api` pada *"New override for library"*, tekan **Add**.
+4. Ulangi ketik `steam_api64`, tekan **Add**.
+5. Keduanya secara default akan ter-set sebagai **(native, builtin)**. Klik **Apply** lalu **OK**.
 
 ### Mengapa ini dibutuhkan?
-Beberapa rilis pre-installed modifikasi (*cracked*) menggunakan pustaka `steam_api.dll` dan `steam_api64.dll` khusus yang dimodifikasi untuk memotong verifikasi DRM Steam. Mode *Native then Builtin* memaksa Wine untuk memprioritaskan membaca `.dll` fisik bawaan permainan di dalam direktori folder yang Anda ekstrak (Native) daripada mencoba menggunakan atau mengemulasi pustaka buatan sistem Wine itu sendiri (Builtin). Hal ini mencegah error seperti *License Not Found*, jendela Steam Store terbuka tiba-tiba, atau permainan keluar paksa (Crash to Desktop) saat peluncuran.
+Beberapa game bajakan/pre-installed memakai `steam_api.dll` khusus (seperti buatan Goldberg Emulator) untuk memotong verifikasi DRM Steam. Mode *Native then Builtin* memaksa Wine memprioritaskan membaca DLL fisik yang Anda ekstrak (Native) daripada emulasi Wine (Builtin). Hal ini mencegah error *License Not Found*, Steam Store terbuka, atau *Crash to Desktop* saat peluncuran.

@@ -12,6 +12,9 @@ File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 
 ## DRM Bypass & Cracking (BACA KALAU USER TANYA CARA MEMAINKAN GAME ORI/STEAM DI EMULATOR)
 - `drm-bypass.md` — Cara bypass Steam DRM, Goldberg emu, Epic Games, Denuvo, dan troubleshooting untuk menjalankan game ori di emulator mobile (Winlator). **PAKE FILE INI** kalau user nanya: "kenapa game steam nggak bisa dibuka", "cara pakai goldberg", "bypass drm", "crack game emulator".
+- `kb_drm_bypass.md` — Pengetahuan mendalam tentang DRM bypass berdasarkan SteamAutoCracker. **PAKE FILE INI** buat referensi advanced cara bongkar DRM Steam (Steamless, CreamAPI DLC, Goldberg).
+- `kb_piracy_sites.md` — Daftar situs download game bajakan yang aman (SteamRIP, FitGirl) dan blacklist malware. **PAKE FILE INI** kalau user nanya "download game di mana" atau minta link crack.
+- `winlator_override.md` — Panduan teknis cara pasang override Environment Variables `WINEDLLOVERRIDES=steam_api=n,b;` di Winlator agar crack bekerja dengan benar. **PAKE FILE INI** kalau user gagal jalankan game bajakan yang baru diekstrak.
 
 ## Forks & ecosystem map (BACA KALAU USER TANYA "fork mana / komponen apa")
 - `forks-landscape.md` — versi + status semua komponen 2026 (Winlator main/CMOD/Bionic Ludashi/GLIBC,
@@ -130,3 +133,6 @@ File ini = peta. Tiap topik linked ke file detail di folder yg sama.
 ## Cara cari di KB
 Bot panggil `kb_lookup(topic)` — substring match case-insensitive ke header section + body file.
 Topic bisa: nama env var, nama knob, nama game, nama chipset, atau konsep (mis. "TSO").
+
+## Community Fixes (Kontribusi Real User)
+- `community.md` — Kumpulan fix dan trik dari pengguna Winlator di komunitas (via command /addfix). Isinya adalah pengalaman riil di lapangan (seperti fix game PES, RE3 Remake di chipset tertentu). **PAKE FILE INI** kalau ada spesifik problem yang tidak ada di dokumentasi resmi namun sudah pernah dipecahkan oleh member komunitas.

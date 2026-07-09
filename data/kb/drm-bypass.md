@@ -1,5 +1,5 @@
 # DRM BYPASS & CRACKING PADA EMULATOR (Winlator / Termux-Box)
-[VERIFIED]
+[VERIFIED] - Sumber: Panduan Dasar Emulator Winlator
 
 ## KONTEKS
 Beberapa game original (seperti dari Steam, GOG, Epic Games, atau EA App) yang dipasang di emulator Winlator/Mobox seringkali tidak bisa dijalankan karena adanya DRM (Digital Rights Management). Emulator belum mendukung integrasi penuh dengan client-client resmi ini secara sempurna.

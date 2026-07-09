@@ -68,7 +68,7 @@ function main() {
     errors.push(`${INDEX} ga ada — index hilang.`);
   } else {
     const idxText = read(INDEX);
-    referenced = [...new Set((idxText.match(/[a-z0-9][a-z0-9-]*\.md/gi) || []))]
+    referenced = [...new Set((idxText.match(/[a-z0-9][a-z0-9-_]*\.md/gi) || []))]
       .filter((f) => f !== INDEX);
     for (const ref of referenced) {
       if (!disk.includes(ref)) {
