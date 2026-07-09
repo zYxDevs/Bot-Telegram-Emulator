@@ -7,12 +7,16 @@
 //    - /root/memori claude/text.txt        (V2, persistent + rate + /addfix)
 // =============================================================================
 
-require('dotenv').config();
+const dotenv = require('dotenv');
+dotenv.config();
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
+const http = require('http');
+const os = require('os');
+const crypto = require('crypto');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const FREEMODEL_KEY = process.env.FREEMODEL_KEY;
@@ -24,9 +28,18 @@ if (!TELEGRAM_TOKEN || !FREEMODEL_KEY || !TOKENROUTER_KEY) {
     process.exit(1);
 }
 
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+const TELEGRAM_MODE = (process.env.TELEGRAM_MODE || (process.env.TELEGRAM_WEBHOOK_URL ? 'webhook' : 'polling')).toLowerCase();
+const TELEGRAM_WEBHOOK_URL = process.env.TELEGRAM_WEBHOOK_URL || '';
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || crypto.randomBytes(12).toString('hex');
+const WEBHOOK_PATH = process.env.TELEGRAM_WEBHOOK_PATH || `/telegram-webhook/${WEBHOOK_SECRET}`;
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: TELEGRAM_MODE !== 'webhook' });
 const { setBotInstance, splitMessage, sendSafe, withTyping, escapeSafeMd } = require("./modules/telegram-utils");
 setBotInstance(bot);
+if (TELEGRAM_MODE !== 'webhook') {
+    bot.deleteWebHook({ drop_pending_updates: false }).catch((e) => {
+        console.error('Gagal delete webhook lama:', e.message);
+    });
+}
 
 // Identitas bot — buat deteksi mention & reply di grup.
 let BOT_USERNAME = '';
@@ -47,9 +60,16 @@ bot.getMe().then((me) => {
     ];
     const adminCommands = [
         ...publicCommands,
+        { command: 'status', description: 'Status VPS, PM2, disk, LLM, queue' },
         { command: 'stats', description: 'Tampilkan metrik sistem internal' },
+        { command: 'llmstatus', description: 'Status routing LLM aktif' },
+        { command: 'llmroute', description: 'Ganti model/route LLM runtime' },
+        { command: 'llmtest', description: 'Tes latency semua provider LLM' },
+        { command: 'reloadenv', description: 'Reload .env tanpa SSH' },
+        { command: 'backup', description: 'Jalankan backup COPUX sekarang' },
         { command: 'reloadkb', description: 'Muat ulang data Knowledge Base' },
-        { command: 'promotefix', description: 'Review dan push antrean addfix' }
+        { command: 'promotefix', description: 'Review dan push antrean addfix' },
+        { command: 'profile', description: 'Lihat/set profil user' }
     ];
 
     bot.setMyCommands(publicCommands, { scope: { type: 'default' } })
@@ -69,19 +89,57 @@ bot.on('polling_error', (e) => {
         .replace(/bot\d+:[A-Za-z0-9_-]+/g, 'bot[REDACTED]')
         .replace(/\s+/g, ' ')
         .slice(0, 180);
+    recordError('polling', msg);
     console.error(`polling_error: ${e && e.code ? e.code : 'ERR'} ${msg}`);
 });
 
-// Provider routing: both vision & text-only → freemodel (TokenRouter/MiniMax-M3 stopped free tokens 2026-06-24).
-const VISION_MODEL = process.env.VISION_MODEL || 'gpt-5.5';
-const TEXT_MODEL = process.env.TEXT_MODEL || 'gpt-5.5';
+// Provider routing: runtime-mutable supaya admin bisa /llmroute dan /reloadenv tanpa SSH.
 const DIRECT_FREEMODEL_URL = 'https://api.freemodel.dev/v1/chat/completions';
-const LLM_FALLBACK_URLS = (process.env.LLM_FALLBACK_URLS || '')
-    .split(',').map((s) => s.trim()).filter(Boolean);
-const LLM_FALLBACK_MODELS = (process.env.LLM_FALLBACK_MODELS || '')
-    .split(',').map((s) => s.trim());
-const LLM_FALLBACK_KEYS = (process.env.LLM_FALLBACK_KEYS || '')
-    .split(',').map((s) => s.trim());
+const RUNTIME_STATE_FILE = path.join(__dirname, 'data', 'runtime-state.json');
+let runtimeState = {};
+let VISION_MODEL = 'gpt-5.5';
+let TEXT_MODEL = 'gpt-5.5';
+let ACTIVE_LLM_ROUTE = '';
+let ACTIVE_COPUX_API_URL = COPUX_API_URL;
+let ACTIVE_COPUX_API_KEY = COPUX_API_KEY;
+let LLM_FALLBACK_URLS = [];
+let LLM_FALLBACK_MODELS = [];
+let LLM_FALLBACK_KEYS = [];
+
+function parseCsvEnv(v) {
+    return String(v || '').split(',').map((s) => s.trim()).filter(Boolean);
+}
+function loadRuntimeState() {
+    try {
+        if (fs.existsSync(RUNTIME_STATE_FILE)) runtimeState = JSON.parse(fs.readFileSync(RUNTIME_STATE_FILE, 'utf8'));
+    } catch (e) {
+        runtimeState = {};
+    }
+}
+function saveRuntimeState() {
+    try {
+        fs.mkdirSync(path.dirname(RUNTIME_STATE_FILE), { recursive: true });
+        const tmp = RUNTIME_STATE_FILE + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(runtimeState, null, 2));
+        fs.renameSync(tmp, RUNTIME_STATE_FILE);
+    } catch (e) {
+        console.error('Gagal simpan runtime-state:', e.message);
+    }
+}
+function reloadRuntimeEnv() {
+    dotenv.config({ override: true });
+    ACTIVE_COPUX_API_URL = process.env.COPUX_API_URL || COPUX_API_URL || DIRECT_FREEMODEL_URL;
+    ACTIVE_COPUX_API_KEY = process.env.COPUX_API_KEY || COPUX_API_KEY || FREEMODEL_KEY;
+    const routeOverride = runtimeState.llmRoute || process.env.LLM_ROUTE || '';
+    ACTIVE_LLM_ROUTE = routeOverride;
+    TEXT_MODEL = routeOverride || process.env.TEXT_MODEL || 'gpt-5.5';
+    VISION_MODEL = routeOverride || process.env.VISION_MODEL || TEXT_MODEL || 'gpt-5.5';
+    LLM_FALLBACK_URLS = parseCsvEnv(process.env.LLM_FALLBACK_URLS);
+    LLM_FALLBACK_MODELS = parseCsvEnv(process.env.LLM_FALLBACK_MODELS);
+    LLM_FALLBACK_KEYS = parseCsvEnv(process.env.LLM_FALLBACK_KEYS);
+}
+loadRuntimeState();
+reloadRuntimeEnv();
 
 // Tunable lewat env biar adaptif: HP low-end Termux turunin, server lega naikin.
 const MAX_HISTORY = parseInt(process.env.MAX_HISTORY || '10', 10);
@@ -120,10 +178,11 @@ const DATA_DIR = path.join(__dirname, 'data');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 const ADDFIX_FILE = path.join(DATA_DIR, 'addfix.jsonl');
 
-const ADMIN_IDS = new Set(
-    (process.env.ADMIN_IDS || '')
-        .split(',').map((s) => s.trim()).filter(Boolean)
-);
+let ADMIN_IDS = new Set();
+function reloadAdminIds() {
+    ADMIN_IDS = new Set(parseCsvEnv(process.env.ADMIN_IDS));
+}
+reloadAdminIds();
 
 // Rate limit per-user: cooldown antar pesan + cap window
 const RATE_COOLDOWN_MS = 5 * 1000;          // minimal 5s antar pesan
@@ -167,6 +226,337 @@ const STATS_TTL = 7 * 24 * 60 * 60 * 1000;
 const userStats = new Map(); // userId -> { name, firstSeen, lastSeen, count, lastChatType, lastChatId }
 const msgLog = []; // [{ ts, userId }] — buat hitung unique per window
 const BOT_START_TS = Date.now();
+
+const LAST_ERRORS = [];
+const LLM_EVENTS = [];
+const PROFILE_FILE = path.join(DATA_DIR, 'user-profiles.json');
+const BACKUP_SCRIPT = path.join(__dirname, 'scripts', 'backup.js');
+const AUTO_BACKUP_ENABLED = String(process.env.AUTO_BACKUP_ENABLED || '1') !== '0';
+const BACKUP_INTERVAL_MS = parseInt(process.env.BACKUP_INTERVAL_MS || String(24 * 60 * 60 * 1000), 10);
+const SELF_HEAL_ENABLED = String(process.env.SELF_HEAL_ENABLED || '1') !== '0';
+const SELF_HEAL_INTERVAL_MS = parseInt(process.env.SELF_HEAL_INTERVAL_MS || '60000', 10);
+const SELF_HEAL_FAIL_THRESHOLD = Math.max(1, parseInt(process.env.SELF_HEAL_FAIL_THRESHOLD || '3', 10));
+const ADMIN_WEB_HOST = process.env.ADMIN_WEB_HOST || '127.0.0.1';
+const ADMIN_WEB_PORT = parseInt(process.env.ADMIN_WEB_PORT || '8787', 10);
+const ADMIN_WEB_TOKEN = process.env.ADMIN_WEB_TOKEN || '';
+const MAX_CONCURRENT_WEB_FETCH = Math.max(1, parseInt(process.env.MAX_CONCURRENT_WEB_FETCH || '2', 10));
+const MAX_CONCURRENT_SEARCH = Math.max(1, parseInt(process.env.MAX_CONCURRENT_SEARCH || '2', 10));
+let webFetchInFlight = 0;
+let webSearchInFlight = 0;
+const webFetchWaiters = [];
+const webSearchWaiters = [];
+let lastBackupResult = null;
+let selfHealState = { primaryFails: 0, scraplingFails: 0, lastAction: '' };
+let userProfiles = {};
+
+function execFileAsync(file, args, opts = {}) {
+    return new Promise((resolve, reject) => {
+        execFile(file, args, { timeout: 30000, maxBuffer: 4 * 1024 * 1024, ...opts }, (err, stdout, stderr) => {
+            if (err) {
+                err.stdout = stdout;
+                err.stderr = stderr;
+                reject(err);
+            } else {
+                resolve({ stdout: String(stdout || ''), stderr: String(stderr || '') });
+            }
+        });
+    });
+}
+
+function redactSecret(s) {
+    return String(s || '')
+        .replace(/bot\d+:[A-Za-z0-9_-]+/g, 'bot[REDACTED]')
+        .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [REDACTED]')
+        .replace(/(token|key|secret|password)["'=:\s]+[A-Za-z0-9._:/+-]+/gi, '$1=[REDACTED]');
+}
+
+function recordError(source, err) {
+    const msg = redactSecret(err && err.stack ? err.stack : (err && err.message ? err.message : err));
+    LAST_ERRORS.push({ ts: Date.now(), source, msg: msg.slice(0, 500) });
+    while (LAST_ERRORS.length > 25) LAST_ERRORS.shift();
+}
+
+function recordLlmEvent(event) {
+    LLM_EVENTS.push({ ts: Date.now(), ...event });
+    while (LLM_EVENTS.length > 30) LLM_EVENTS.shift();
+}
+
+const alertCooldown = new Map();
+function notifyAdmins(text, key = 'generic', cooldownMs = 60000) {
+    const now = Date.now();
+    const prev = alertCooldown.get(key) || 0;
+    if (now - prev < cooldownMs) return;
+    alertCooldown.set(key, now);
+    for (const adminId of ADMIN_IDS) {
+        bot.sendMessage(adminId, text, { disable_web_page_preview: true }).catch((e) => {
+            console.error('Gagal kirim admin alert:', e.message);
+        });
+    }
+}
+
+function acquireGenericSlot(kind) {
+    const max = kind === 'search' ? MAX_CONCURRENT_SEARCH : MAX_CONCURRENT_WEB_FETCH;
+    const waiters = kind === 'search' ? webSearchWaiters : webFetchWaiters;
+    if (kind === 'search') {
+        if (webSearchInFlight < max) { webSearchInFlight++; return Promise.resolve(); }
+    } else if (webFetchInFlight < max) {
+        webFetchInFlight++;
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => waiters.push(resolve));
+}
+function releaseGenericSlot(kind) {
+    const waiters = kind === 'search' ? webSearchWaiters : webFetchWaiters;
+    if (waiters.length) {
+        waiters.shift()();
+        return;
+    }
+    if (kind === 'search') webSearchInFlight = Math.max(0, webSearchInFlight - 1);
+    else webFetchInFlight = Math.max(0, webFetchInFlight - 1);
+}
+
+function loadProfiles() {
+    try {
+        if (fs.existsSync(PROFILE_FILE)) userProfiles = JSON.parse(fs.readFileSync(PROFILE_FILE, 'utf8'));
+    } catch (e) {
+        userProfiles = {};
+    }
+}
+function saveProfiles() {
+    try {
+        const tmp = PROFILE_FILE + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(userProfiles, null, 2));
+        fs.renameSync(tmp, PROFILE_FILE);
+    } catch (e) {
+        console.error('Gagal simpan profile:', e.message);
+    }
+}
+function updateUserProfile(userId, fields) {
+    if (!userId) return;
+    const id = String(userId);
+    const rec = userProfiles[id] || { createdAt: Date.now(), updatedAt: Date.now() };
+    Object.assign(rec, fields, { updatedAt: Date.now() });
+    userProfiles[id] = rec;
+    saveProfiles();
+}
+function observeProfileFromText(userId, text) {
+    if (!userId || !text) return;
+    const rec = {};
+    const chip = String(text).match(/\b(Snapdragon\s+[0-9A-Za-z+ ]+|SD\s*[0-9][0-9A-Za-z+ ]+|Dimensity\s+[0-9A-Za-z+ ]+|Helio\s+G?\d+[A-Za-z ]*)\b/i);
+    const gpu = String(text).match(/\b(Adreno\s+\d+|Mali-[A-Z]\d+\s*MC\d+|Mali-[A-Z]\d+|Immortalis-[A-Z]\d+|PowerVR\s+\S+|IMG\s+\S+)\b/i);
+    const emu = String(text).match(/\b(GameHub(?: Lite)?|GameNative|WinNative|Winlator(?:\s+(?:Ludashi|Frost|CMOD|Cmod|Bionic|REF4IK))?|BannerHub|Bannerlator)\b/i);
+    if (chip) rec.chipset = chip[1].replace(/\s+/g, ' ').trim();
+    if (gpu) rec.gpu = gpu[1].replace(/\s+/g, ' ').trim();
+    if (emu) rec.emulator = emu[1].replace(/\s+/g, ' ').trim();
+    if (Object.keys(rec).length) updateUserProfile(userId, rec);
+}
+function profileContext(userId) {
+    const p = userProfiles[String(userId || '')];
+    if (!p) return '';
+    const bits = [];
+    if (p.device) bits.push(`device=${p.device}`);
+    if (p.chipset) bits.push(`chipset=${p.chipset}`);
+    if (p.gpu) bits.push(`gpu=${p.gpu}`);
+    if (p.emulator) bits.push(`emulator=${p.emulator}`);
+    if (p.style) bits.push(`style=${p.style}`);
+    return bits.length ? `[USER_PROFILE ${bits.join(' ')}]\n` : '';
+}
+
+function currentProviders(hasImage = false) {
+    const defaultModel = hasImage ? VISION_MODEL : TEXT_MODEL;
+    const providers = [
+        { name: 'primary', url: ACTIVE_COPUX_API_URL, key: ACTIVE_COPUX_API_KEY, model: defaultModel },
+        ...LLM_FALLBACK_URLS.map((url, i) => ({
+            name: `fallback-${i + 1}`,
+            url,
+            key: LLM_FALLBACK_KEYS[i] || ACTIVE_COPUX_API_KEY || FREEMODEL_KEY,
+            model: LLM_FALLBACK_MODELS[i] || defaultModel
+        }))
+    ];
+    if (!providers.some((p) => p.url === DIRECT_FREEMODEL_URL)) {
+        providers.push({ name: 'freemodel-direct', url: DIRECT_FREEMODEL_URL, key: FREEMODEL_KEY, model: defaultModel });
+    }
+    return providers;
+}
+
+function providerLabel(p) {
+    let host = p.url;
+    try { host = new URL(p.url).host; } catch {}
+    return `${p.name}:${p.model}@${host}`;
+}
+
+async function testLlmProvider(p, timeoutMs = 20000) {
+    const t0 = Date.now();
+    try {
+        const res = await axios.post(p.url, {
+            model: p.model,
+            messages: [
+                { role: 'system', content: 'Reply exactly: pong' },
+                { role: 'user', content: 'ping' }
+            ]
+        }, {
+            headers: { Authorization: `Bearer ${p.key}`, 'Content-Type': 'application/json' },
+            timeout: timeoutMs,
+            validateStatus: () => true
+        });
+        const ms = Date.now() - t0;
+        const ok = res.status >= 200 && res.status < 300;
+        return { ok, ms, status: res.status, text: ok ? ((res.data?.choices?.[0]?.message?.content || '').slice(0, 80)) : '' };
+    } catch (e) {
+        return { ok: false, ms: Date.now() - t0, status: e.code || e.message, text: '' };
+    }
+}
+
+async function buildLlmTestReport() {
+    const rows = [];
+    for (const p of currentProviders(false)) {
+        const r = await testLlmProvider(p);
+        rows.push(`${r.ok ? '✅' : '❌'} ${providerLabel(p)} — ${r.status}, ${r.ms}ms${r.text ? `, "${r.text}"` : ''}`);
+    }
+    return `🧠 *LLM Test*\n${rows.join('\n')}`;
+}
+
+function buildLlmStatusReport() {
+    const providers = currentProviders(false).map((p, i) => `${i + 1}. ${providerLabel(p)}`).join('\n');
+    const last = LLM_EVENTS.slice(-5).map((e) => {
+        const age = fmtDuration(Date.now() - e.ts);
+        return `• ${age} lalu: ${e.message || `${e.from || '?'} → ${e.to || '?'}`}`;
+    }).join('\n') || 'belum ada event';
+    return [
+        '🧠 *LLM Router*',
+        `Route override: *${ACTIVE_LLM_ROUTE || '(env/default)'}*`,
+        `Text model: *${TEXT_MODEL}*`,
+        `Vision model: *${VISION_MODEL}*`,
+        `Primary URL: \`${ACTIVE_COPUX_API_URL}\``,
+        '',
+        '*Provider chain:*',
+        providers,
+        '',
+        '*Event terakhir:*',
+        last
+    ].join('\n');
+}
+
+async function pm2Snapshot() {
+    try {
+        const { stdout } = await execFileAsync('pm2', ['jlist'], { timeout: 8000 });
+        const arr = JSON.parse(stdout);
+        return arr.map((p) => ({
+            name: p.name,
+            status: p.pm2_env?.status,
+            pid: p.pid,
+            uptime: p.pm2_env?.pm_uptime ? fmtDuration(Date.now() - p.pm2_env.pm_uptime) : '0d',
+            restarts: p.pm2_env?.restart_time || 0,
+            mem: p.monit?.memory || 0,
+            cpu: p.monit?.cpu || 0
+        }));
+    } catch (e) {
+        return [];
+    }
+}
+
+async function diskLine() {
+    try {
+        const { stdout } = await execFileAsync('df', ['-h', __dirname], { timeout: 8000 });
+        const lines = stdout.trim().split('\n');
+        return lines[1] || 'df unavailable';
+    } catch {
+        return 'df unavailable';
+    }
+}
+
+function queueReport() {
+    return [
+        `LLM: ${llmInFlight}/${MAX_CONCURRENT_LLM}, wait ${llmWaiters.length}`,
+        `Video: ${videoInFlight}/${MAX_CONCURRENT_VIDEO}, wait ${videoWaiters.length}`,
+        `web_fetch: ${webFetchInFlight}/${MAX_CONCURRENT_WEB_FETCH}, wait ${webFetchWaiters.length}`,
+        `web_search: ${webSearchInFlight}/${MAX_CONCURRENT_SEARCH}, wait ${webSearchWaiters.length}`
+    ].join('\n');
+}
+
+async function buildStatusReport({ testLlm = true } = {}) {
+    const mem = process.memoryUsage();
+    const sysMemUsed = os.totalmem() - os.freemem();
+    const pm2 = await pm2Snapshot();
+    const services = pm2.length
+        ? pm2.map((p) => `${p.status === 'online' ? '✅' : '❌'} ${p.name}: ${p.status}, pid ${p.pid || 0}, up ${p.uptime}, rss ${Math.round(p.mem / 1024 / 1024)}MB, ↺${p.restarts}`).join('\n')
+        : 'pm2 unavailable';
+    let llmLine = 'skip';
+    if (testLlm) {
+        const r = await testLlmProvider(currentProviders(false)[0], 15000);
+        llmLine = `${r.ok ? '✅' : '❌'} primary ${r.status}, ${r.ms}ms`;
+    }
+    const lastErr = LAST_ERRORS.length ? LAST_ERRORS[LAST_ERRORS.length - 1] : null;
+    return [
+        '🩺 *COPUX Status*',
+        `Bot uptime: *${fmtDuration(Date.now() - BOT_START_TS)}*`,
+        `Node: *${process.version}* · PID: \`${process.pid}\``,
+        `Process RAM: *${Math.round(mem.rss / 1024 / 1024)}MB*`,
+        `System RAM: *${Math.round(sysMemUsed / 1024 / 1024)}MB/${Math.round(os.totalmem() / 1024 / 1024)}MB*`,
+        `Disk: \`${await diskLine()}\``,
+        '',
+        '*PM2:*',
+        services,
+        '',
+        '*LLM:*',
+        `Route: *${ACTIVE_LLM_ROUTE || TEXT_MODEL}*`,
+        `Latency: ${llmLine}`,
+        '',
+        '*Queue:*',
+        queueReport(),
+        '',
+        `Backup terakhir: ${lastBackupResult ? `${lastBackupResult.ok ? '✅' : '❌'} ${lastBackupResult.when} ${lastBackupResult.path || lastBackupResult.error || ''}` : 'belum ada'}`,
+        `Error terakhir: ${lastErr ? `${fmtDuration(Date.now() - lastErr.ts)} lalu [${lastErr.source}] ${lastErr.msg.slice(0, 160)}` : 'kosong'}`
+    ].join('\n');
+}
+
+async function runBackupNow(reason = 'manual') {
+    const t0 = Date.now();
+    try {
+        const { stdout } = await execFileAsync('node', [BACKUP_SCRIPT, reason], { timeout: 10 * 60 * 1000, maxBuffer: 8 * 1024 * 1024 });
+        const line = stdout.trim().split('\n').pop() || '';
+        lastBackupResult = { ok: true, when: new Date().toISOString(), path: line, ms: Date.now() - t0 };
+        return lastBackupResult;
+    } catch (e) {
+        lastBackupResult = { ok: false, when: new Date().toISOString(), error: (e.stderr || e.message || '').slice(0, 200), ms: Date.now() - t0 };
+        recordError('backup', lastBackupResult.error);
+        return lastBackupResult;
+    }
+}
+
+async function selfHealTick() {
+    if (!SELF_HEAL_ENABLED) return;
+    try {
+        const primary = currentProviders(false)[0];
+        const r = await testLlmProvider(primary, 12000);
+        if (!r.ok) selfHealState.primaryFails++;
+        else selfHealState.primaryFails = 0;
+        if (selfHealState.primaryFails >= SELF_HEAL_FAIL_THRESHOLD && /127\.0\.0\.1|localhost/.test(primary.url)) {
+            selfHealState.lastAction = `restart 9router ${new Date().toISOString()}`;
+            notifyAdmins(`🧯 Self-healing: primary LLM gagal ${selfHealState.primaryFails}x, restart 9router. Last: ${r.status}`, 'heal-9router', 5 * 60 * 1000);
+            execFile('pm2', ['restart', '9router'], () => {});
+            selfHealState.primaryFails = 0;
+        }
+    } catch (e) {
+        recordError('self-heal-primary', e);
+    }
+    try {
+        if (SCRAPLING_FETCH_URL) {
+            const healthUrl = SCRAPLING_FETCH_URL.replace(/\/fetch$/, '/health');
+            const res = await axios.get(healthUrl, { timeout: 5000, validateStatus: () => true });
+            if (res.status >= 400) selfHealState.scraplingFails++;
+            else selfHealState.scraplingFails = 0;
+            if (selfHealState.scraplingFails >= SELF_HEAL_FAIL_THRESHOLD) {
+                selfHealState.lastAction = `restart copux-scrapling ${new Date().toISOString()}`;
+                notifyAdmins(`🧯 Self-healing: scrapling gagal ${selfHealState.scraplingFails}x, restart copux-scrapling.`, 'heal-scrapling', 5 * 60 * 1000);
+                execFile('pm2', ['restart', 'copux-scrapling'], () => {});
+                selfHealState.scraplingFails = 0;
+            }
+        }
+    } catch (e) {
+        selfHealState.scraplingFails++;
+    }
+}
 
 // =============================================================================
 //  PERSISTENCE — load saat boot, save atomic + debounce
@@ -283,6 +673,7 @@ process.on('uncaughtException', (err) => {
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 loadHistory();
+loadProfiles();
 
 // =============================================================================
 //  SYSTEM PROMPT (persona COPUX-FourFect — versi 2 KELUARGA emulator)
@@ -486,6 +877,23 @@ const TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'kb_search',
+            description: 'Semantic-ish search lokal di seluruh Knowledge Base Fourfect. Pakai ini saat keyword user tidak persis match nama file/section, atau pertanyaan emulator panjang butuh recall lintas KB. Return top section relevan dengan skor. Untuk exact topic/env var tetap pakai kb_lookup dulu.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query: {
+                        type: 'string',
+                        description: 'Query natural language. Contoh: "MTK Mali driver baru bisa DX12", "GTA V Helio G99 dxvk ringan", "Box64 preset Unity crash".'
+                    }
+                },
+                required: ['query']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'web_search',
             description: 'Cari sumber/link buat pertanyaan TEKNIS spesifik: param dxvk.conf, env var (BOX64_*/DXVK_*/MESA_*), error/crash game tertentu, kompatibilitas game, driver per-GPU (Turnip/Adreno/Mali), versi rilis emulator. JANGAN call buat: sapaan, opini/rekomendasi subjektif ("emulator terbaik"), pertanyaan umum yg bisa dijawab dari pengetahuan domain. Return: daftar judul+URL. Wajib dipanggil SEBELUM web_fetch kalau URL belum diketahui dari hasil search/system prompt.',
             parameters: {
@@ -595,20 +1003,26 @@ async function ddgSearch(query) {
 
 // Fallback berlapis: Serper -> Tavily -> DuckDuckGo.
 async function webSearch(query) {
-    const providers = [
-        ['Serper', () => process.env.SERPER_API_KEY ? serperSearch(query) : null],
-        ['Tavily', () => process.env.TAVILY_API_KEY ? tavilySearch(query) : null],
-        ['DuckDuckGo', () => ddgSearch(query)]
-    ];
-    for (const [name, fn] of providers) {
-        try {
-            const r = await fn();
-            if (r) { console.log(`🔍 search via ${name}`); return r; }
-        } catch (e) {
-            console.error(`search ${name} gagal: ${e.message}`);
+    await acquireGenericSlot('search');
+    try {
+        const providers = [
+            ['Serper', () => process.env.SERPER_API_KEY ? serperSearch(query) : null],
+            ['Tavily', () => process.env.TAVILY_API_KEY ? tavilySearch(query) : null],
+            ['DuckDuckGo', () => ddgSearch(query)]
+        ];
+        for (const [name, fn] of providers) {
+            try {
+                const r = await fn();
+                if (r) { console.log(`🔍 search via ${name}`); return r; }
+            } catch (e) {
+                recordError(`search-${name}`, e);
+                console.error(`search ${name} gagal: ${e.message}`);
+            }
         }
+        return 'web_search lagi ga tersedia (semua search engine nge-throttle/limit). JANGAN ulang web_search dan JANGAN karang URL. Kalau sudah ada URL valid dari user/history/tool result, baru pakai web_fetch ke URL itu. Kalau belum ada URL, jawab dari KB/pengetahuan yang ada dengan confidence rendah dan minta user kirim link/log kalau butuh verifikasi.';
+    } finally {
+        releaseGenericSlot('search');
     }
-    return 'web_search lagi ga tersedia (semua search engine nge-throttle/limit). JANGAN ulang web_search dan JANGAN karang URL. Kalau sudah ada URL valid dari user/history/tool result, baru pakai web_fetch ke URL itu. Kalau belum ada URL, jawab dari KB/pengetahuan yang ada dengan confidence rendah dan minta user kirim link/log kalau butuh verifikasi.';
 }
 
 // SSRF guard: blokir loopback, link-local (cloud metadata 169.254.169.254),
@@ -723,10 +1137,11 @@ async function tryFirecrawlFetch(rawUrl) {
 }
 
 async function webFetch(url) {
-    // Scrapling dulu (lebih jago nembus anti-bot). Gagal/mati → fallback axios di bawah.
-    const viaScrapling = await tryScraplingFetch(url);
-    if (viaScrapling) return viaScrapling;
+    await acquireGenericSlot('fetch');
     try {
+        // Scrapling dulu (lebih jago nembus anti-bot). Gagal/mati → fallback axios di bawah.
+        const viaScrapling = await tryScraplingFetch(url);
+        if (viaScrapling) return viaScrapling;
         let currentUrl = url;
         let res = null;
         for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
@@ -790,10 +1205,13 @@ async function webFetch(url) {
         return text || '(halaman kosong)';
     } catch (e) {
         // JANGAN echo e.message — bisa leak IP:port/host (SSRF probe confirmation).
+        recordError('web_fetch', e);
         console.error('webFetch error:', e.code || e.message);
         const viaFirecrawl = await tryFirecrawlFetch(url);
         if (viaFirecrawl) return viaFirecrawl;
         return 'web_fetch gagal: gagal ambil URL (timeout/network/dns).';
+    } finally {
+        releaseGenericSlot('fetch');
     }
 }
 
@@ -950,8 +1368,57 @@ function kbLookup(topic) {
     return out;
 }
 
+function _kbTokens(s) {
+    const stop = new Set(['yang', 'dan', 'atau', 'buat', 'untuk', 'dengan', 'kalau', 'pake', 'pakai', 'bisa', 'apa', 'gimana', 'kenapa', 'driver', 'versi']);
+    return String(s || '').toLowerCase()
+        .replace(/[^a-z0-9.+_-]+/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length >= 2 && !stop.has(w));
+}
+
+function kbSemanticSearch(query) {
+    if (KB_CACHE == null) loadKB();
+    const qTokens = _kbTokens(query);
+    if (!qTokens.length) return 'kb_search: query kosong.';
+    const qSet = new Set(qTokens);
+    const scores = [];
+    for (const file of KB_CACHE || []) {
+        for (const sec of file.sections) {
+            const text = `${file.file}\n${sec.header}\n${sec.body}`;
+            const tokens = _kbTokens(text);
+            if (!tokens.length) continue;
+            const freq = new Map();
+            for (const t of tokens) freq.set(t, (freq.get(t) || 0) + 1);
+            let score = 0;
+            for (const qt of qSet) {
+                if (freq.has(qt)) score += 2 + Math.min(3, freq.get(qt));
+                // fuzzy prefix kecil buat "mediatek"/"mtk", "vkd3d"/"dx12" tetap butuh exact di KB
+                for (const tk of freq.keys()) {
+                    if (tk !== qt && (tk.startsWith(qt) || qt.startsWith(tk)) && Math.min(tk.length, qt.length) >= 4) {
+                        score += 0.5;
+                    }
+                }
+            }
+            if (/mali|mtk|mediatek|driver|dx12|vkd3d|dxvk/.test(String(query).toLowerCase())
+                && /mtk-mali-modern|gpu-rules|vkd3d|evolution/.test(file.file)) score += 2;
+            if (score > 0) scores.push({ score, file: file.file, header: sec.header, body: sec.body });
+        }
+    }
+    scores.sort((a, b) => b.score - a.score || _confidencePriority(a.header + a.body) - _confidencePriority(b.header + b.body));
+    const top = scores.slice(0, 6);
+    if (!top.length) return `kb_search: ga ada section relevan buat "${query}".`;
+    let out = `# KB semantic hits buat "${query}"\n`;
+    for (const h of top) {
+        let body = h.body.replace(/\s+/g, ' ').trim();
+        if (body.length > 650) body = body.slice(0, 650) + ' ...';
+        out += `\n## ${h.header}\n_(file: ${h.file}, score: ${h.score.toFixed(1)})_\n${body}\n`;
+    }
+    return out;
+}
+
 async function runTool(name, args) {
     if (name === 'kb_lookup') return kbLookup(String(args.topic || ''));
+    if (name === 'kb_search') return kbSemanticSearch(String(args.query || ''));
     if (name === 'web_search') return await webSearch(String(args.query || ''));
     if (name === 'web_fetch') return await webFetch(String(args.url || ''));
     return 'Tool ga dikenal: ' + name;
@@ -962,36 +1429,37 @@ async function runTool(name, args) {
 // =============================================================================
 
 async function chatCompletion(messages, useTools, hasImage) {
-    const defaultModel = hasImage ? VISION_MODEL : TEXT_MODEL;
-    const providers = [
-        { name: 'primary', url: COPUX_API_URL, key: COPUX_API_KEY, model: defaultModel },
-        ...LLM_FALLBACK_URLS.map((url, i) => ({
-            name: `fallback-${i + 1}`,
-            url,
-            key: LLM_FALLBACK_KEYS[i] || COPUX_API_KEY,
-            model: LLM_FALLBACK_MODELS[i] || defaultModel
-        }))
-    ];
-    if (!providers.some((p) => p.url === DIRECT_FREEMODEL_URL)) {
-        providers.push({ name: 'freemodel-direct', url: DIRECT_FREEMODEL_URL, key: FREEMODEL_KEY, model: defaultModel });
-    }
+    const providers = currentProviders(hasImage);
 
     let lastErr = null;
+    let firstFail = null;
     for (let i = 0; i < providers.length; i++) {
         const cfg = providers[i];
         const body = { model: cfg.model, messages };
         if (useTools) { body.tools = TOOLS; body.tool_choice = 'auto'; }
+        const t0 = Date.now();
         try {
             const res = await axios.post(cfg.url, body, {
                 headers: { 'Authorization': `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
                 timeout: 120000
             });
-            if (i > 0) console.log(`LLM fallback active: ${cfg.name}`);
+            const ms = Date.now() - t0;
+            recordLlmEvent({ ok: true, provider: cfg.name, model: cfg.model, ms, message: `${cfg.name} ok ${ms}ms` });
+            if (i > 0) {
+                const from = firstFail ? `${firstFail.name} ${firstFail.reason}` : 'primary failed';
+                const to = `${cfg.name}/${cfg.model}`;
+                console.log(`LLM fallback active: ${cfg.name}`);
+                recordLlmEvent({ ok: true, from, to, message: `${from} -> ${to}` });
+                notifyAdmins(`🧠 *LLM fallback aktif*\n${from} → ${to}\nLatency: ${ms}ms`, `llm-fallback-${cfg.name}`, 60000);
+            }
             return res.data;
         } catch (e) {
             lastErr = e;
             const status = e.response && e.response.status;
             const safeMsg = status ? `HTTP ${status}` : (e.code || e.message);
+            if (!firstFail) firstFail = { name: cfg.name, reason: safeMsg };
+            recordError(`llm-${cfg.name}`, safeMsg);
+            recordLlmEvent({ ok: false, provider: cfg.name, model: cfg.model, ms: Date.now() - t0, message: `${cfg.name} gagal: ${safeMsg}` });
             console.error(`LLM provider ${cfg.name} gagal: ${safeMsg}`);
             if (i === providers.length - 1) throw lastErr;
         }
@@ -1020,7 +1488,7 @@ function stripThink(text) {
 // Cuma tool yg emang keregistrasi yg dieksekusi (whitelist) — sisanya diabaikan.
 function parseTextToolCalls(text) {
     if (!text || text.indexOf('<') === -1) return [];
-    const known = new Set(['kb_lookup', 'web_search', 'web_fetch']);
+    const known = new Set(['kb_lookup', 'kb_search', 'web_search', 'web_fetch']);
     const calls = [];
     let mm;
 
@@ -1351,6 +1819,158 @@ setInterval(() => {
     }
 }, 1000 * 60 * 30);
 
+// Backup harian + self-healing ringan. Interval pertama diberi delay biar boot bot
+// tidak langsung rebut resource saat PM2 baru start.
+if (AUTO_BACKUP_ENABLED) {
+    setInterval(() => {
+        runBackupNow('scheduled').then((r) => {
+            if (!r.ok) notifyAdmins(`❌ Backup COPUX gagal: ${r.error || 'unknown'}`, 'backup-fail', 60 * 60 * 1000);
+        });
+    }, BACKUP_INTERVAL_MS);
+}
+if (SELF_HEAL_ENABLED) {
+    setInterval(selfHealTick, SELF_HEAL_INTERVAL_MS);
+}
+
+function readJsonBody(req, limit = 1024 * 1024) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        let size = 0;
+        req.on('data', (c) => {
+            size += c.length;
+            if (size > limit) {
+                reject(new Error('body too large'));
+                req.destroy();
+                return;
+            }
+            chunks.push(c);
+        });
+        req.on('end', () => {
+            try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); }
+            catch (e) { reject(e); }
+        });
+        req.on('error', reject);
+    });
+}
+
+function sendHttp(res, status, body, type = 'text/plain; charset=utf-8') {
+    res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });
+    res.end(body);
+}
+
+function webAuthed(req) {
+    if (!ADMIN_WEB_TOKEN) return ADMIN_WEB_HOST === '127.0.0.1' || ADMIN_WEB_HOST === 'localhost';
+    const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    return req.headers['x-admin-token'] === ADMIN_WEB_TOKEN || u.searchParams.get('token') === ADMIN_WEB_TOKEN;
+}
+
+async function tailFile(file, lines = 120) {
+    try {
+        const { stdout } = await execFileAsync('tail', ['-n', String(lines), file], { timeout: 8000, maxBuffer: 1024 * 1024 });
+        return stdout;
+    } catch (e) {
+        return '';
+    }
+}
+
+async function handleAdminHttp(req, res) {
+    const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    if (TELEGRAM_MODE === 'webhook' && req.method === 'POST' && u.pathname === WEBHOOK_PATH) {
+        try {
+            const update = await readJsonBody(req);
+            bot.processUpdate(update);
+            sendHttp(res, 200, 'ok');
+        } catch (e) {
+            recordError('webhook', e);
+            sendHttp(res, 400, 'bad request');
+        }
+        return;
+    }
+
+    if (u.pathname === '/health') {
+        sendHttp(res, 200, JSON.stringify({ ok: true, mode: TELEGRAM_MODE }), 'application/json');
+        return;
+    }
+    if (!webAuthed(req)) {
+        sendHttp(res, 401, 'unauthorized');
+        return;
+    }
+    try {
+        if (u.pathname === '/' || u.pathname === '/panel') {
+            const html = `<!doctype html><meta charset="utf-8"><title>COPUX Ops</title>
+<style>body{font-family:system-ui,Arial,sans-serif;background:#111;color:#eee;margin:24px}pre{background:#1b1b1b;padding:16px;border-radius:8px;white-space:pre-wrap}button{margin:4px;padding:8px 10px}</style>
+<h1>COPUX Ops Panel</h1>
+<button onclick="load('/api/status')">status</button><button onclick="load('/api/llmtest')">llmtest</button><button onclick="load('/api/logs')">logs</button><button onclick="post('/api/reloadkb')">reload KB</button><button onclick="post('/api/backup')">backup</button>
+<pre id="out">ready</pre>
+<script>
+async function load(p){out.textContent=await (await fetch(p+location.search)).text()}
+async function post(p){out.textContent=await (await fetch(p+location.search,{method:'POST'})).text()}
+</script>`;
+            sendHttp(res, 200, html, 'text/html; charset=utf-8');
+            return;
+        }
+        if (u.pathname === '/api/status') {
+            sendHttp(res, 200, await buildStatusReport({ testLlm: false }));
+            return;
+        }
+        if (u.pathname === '/api/queue') {
+            sendHttp(res, 200, queueReport());
+            return;
+        }
+        if (u.pathname === '/api/llmtest') {
+            sendHttp(res, 200, await buildLlmTestReport());
+            return;
+        }
+        if (u.pathname === '/api/logs') {
+            const out = await tailFile('/root/.pm2/logs/copux-out.log', 80);
+            const err = await tailFile('/root/.pm2/logs/copux-error.log', 80);
+            sendHttp(res, 200, `--- out ---\n${out}\n--- error ---\n${err}`);
+            return;
+        }
+        if (u.pathname === '/api/reloadkb' && req.method === 'POST') {
+            KB_CACHE = null; loadKB();
+            sendHttp(res, 200, 'KB reloaded');
+            return;
+        }
+        if (u.pathname === '/api/backup' && req.method === 'POST') {
+            const r = await runBackupNow('web');
+            sendHttp(res, r.ok ? 200 : 500, JSON.stringify(r, null, 2), 'application/json');
+            return;
+        }
+        sendHttp(res, 404, 'not found');
+    } catch (e) {
+        recordError('admin-http', e);
+        sendHttp(res, 500, 'internal error');
+    }
+}
+
+function startOpsHttpServer() {
+    if (!ADMIN_WEB_PORT && TELEGRAM_MODE !== 'webhook') return;
+    const port = ADMIN_WEB_PORT || parseInt(process.env.PORT || '8787', 10);
+    const server = http.createServer((req, res) => { handleAdminHttp(req, res); });
+    server.on('error', (e) => {
+        recordError('ops-http', e);
+        console.error('Ops HTTP gagal start:', e.message);
+    });
+    server.listen(port, ADMIN_WEB_HOST, () => {
+        console.log(`🛠️ Ops HTTP listening http://${ADMIN_WEB_HOST}:${port} mode=${TELEGRAM_MODE}`);
+    });
+    if (TELEGRAM_MODE === 'webhook') {
+        if (!TELEGRAM_WEBHOOK_URL) {
+            console.error('TELEGRAM_MODE=webhook tapi TELEGRAM_WEBHOOK_URL kosong.');
+            return;
+        }
+        const hookUrl = TELEGRAM_WEBHOOK_URL.replace(/\/$/, '') + WEBHOOK_PATH;
+        bot.setWebHook(hookUrl)
+            .then(() => console.log(`✅ Telegram webhook set: ${hookUrl}`))
+            .catch((e) => {
+                recordError('webhook-set', e);
+                console.error('Gagal set webhook:', e.message);
+            });
+    }
+}
+startOpsHttpServer();
+
 // =============================================================================
 //  HANDLER — command + gate grup + vision + file + YouTube
 // =============================================================================
@@ -1428,9 +2048,88 @@ bot.on('message', async (msg) => {
         sendSafe(chatId, '✅ Fix lu udah masuk antrian review admin. Makasih kontribusinya bro! 🙌');
         return;
     }
+    if (cmd === '/profile') {
+        const body = text.replace(/^\/profile(@\S+)?\s*/i, '').trim();
+        const id = String(userId || '');
+        if (!body) {
+            const p = userProfiles[id] || {};
+            const lines = ['👤 *Profile lo*'];
+            for (const k of ['device', 'chipset', 'gpu', 'emulator', 'style']) {
+                lines.push(`${k}: ${p[k] ? `*${p[k]}*` : '-'}`);
+            }
+            lines.push('\nSet contoh: `/profile set chipset=Dimensity 8200 emulator=Ludashi style=singkat`');
+            sendSafe(chatId, lines.join('\n'));
+            return;
+        }
+        if (/^clear$/i.test(body)) {
+            delete userProfiles[id];
+            saveProfiles();
+            sendSafe(chatId, '🧹 Profile lo dibersihin.');
+            return;
+        }
+        const setBody = body.replace(/^set\s+/i, '');
+        const fields = {};
+        const re = /\b(device|chipset|gpu|emulator|style)=("[^"]+"|'[^']+'|[^=]+?)(?=\s+\b(?:device|chipset|gpu|emulator|style)=|$)/gi;
+        let mm;
+        while ((mm = re.exec(setBody)) !== null) {
+            fields[mm[1].toLowerCase()] = mm[2].replace(/^['"]|['"]$/g, '').trim().slice(0, 80);
+        }
+        if (!Object.keys(fields).length) {
+            sendSafe(chatId, 'Format: `/profile set chipset=... gpu=... emulator=... style=...` atau `/profile clear`');
+            return;
+        }
+        updateUserProfile(userId, fields);
+        sendSafe(chatId, '✅ Profile disimpan.');
+        return;
+    }
+    if (cmd === '/status') {
+        if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
+        sendSafe(chatId, await buildStatusReport({ testLlm: true }));
+        return;
+    }
     if (cmd === '/stats') {
         if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
         sendSafe(chatId, buildStatsReport());
+        return;
+    }
+    if (cmd === '/llmstatus') {
+        if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
+        sendSafe(chatId, buildLlmStatusReport());
+        return;
+    }
+    if (cmd === '/llmroute') {
+        if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
+        const arg = text.replace(/^\/llmroute(@\S+)?\s*/i, '').trim();
+        if (!arg) {
+            sendSafe(chatId, 'Format: `/llmroute copux-stack` atau `/llmroute off`');
+            return;
+        }
+        if (/^(off|default|env)$/i.test(arg)) {
+            delete runtimeState.llmRoute;
+        } else {
+            runtimeState.llmRoute = arg.slice(0, 80);
+        }
+        saveRuntimeState();
+        reloadRuntimeEnv();
+        sendSafe(chatId, `✅ LLM route sekarang: *${ACTIVE_LLM_ROUTE || '(env/default)'}*\nText: *${TEXT_MODEL}*\nVision: *${VISION_MODEL}*`);
+        return;
+    }
+    if (cmd === '/llmtest') {
+        if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
+        sendSafe(chatId, await buildLlmTestReport());
+        return;
+    }
+    if (cmd === '/reloadenv') {
+        if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
+        reloadRuntimeEnv();
+        reloadAdminIds();
+        sendSafe(chatId, `♻️ .env reloaded.\nRoute: *${ACTIVE_LLM_ROUTE || '(env/default)'}*\nAdmin: *${ADMIN_IDS.size}*`);
+        return;
+    }
+    if (cmd === '/backup') {
+        if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
+        const r = await runBackupNow('telegram');
+        sendSafe(chatId, r.ok ? `✅ Backup selesai: \`${r.path}\` (${r.ms}ms)` : `❌ Backup gagal: ${r.error || 'unknown'}`);
         return;
     }
     if (cmd === '/reloadkb') {
@@ -1765,10 +2464,11 @@ bot.on('message', async (msg) => {
     // input sebelum di-concat di belakang server-controlled metaTag asli.
     const stripMeta = (s) => String(s || '').replace(/\[META(?:\s[^\]]*)?\]/gi, '[meta-filtered]');
     const safeName = stripMeta(displayName(msg.from) || 'anon').slice(0, 40);
+    observeProfileFromText(userId, promptText);
     const metaTag = `[META role=${isAdmin(userId) ? 'owner' : 'user'} name=${safeName}]\n`;
     const safePromptText = stripMeta(promptText);
     const safeFileContent = stripMeta(fileContent);
-    const userMsg = { role: 'user', content: metaTag + safePromptText + safeFileContent + (images.length ? `\n[user mengirim ${images.length} gambar]` : '') };
+    const userMsg = { role: 'user', content: metaTag + profileContext(userId) + safePromptText + safeFileContent + (images.length ? `\n[user mengirim ${images.length} gambar]` : '') };
 
     inFlight.add(key);
     let pushed = false;

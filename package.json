@@ -5,7 +5,8 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "test": "node -c bot.js && echo syntax-ok"
+    "test": "node -c bot.js && echo syntax-ok",
+    "backup": "node scripts/backup.js manual"
   },
   "keywords": ["telegram", "bot", "winlator", "gamehub", "emulator", "android"],
   "author": "Noysz (Fourfect Group)",
