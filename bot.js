@@ -514,9 +514,37 @@ async function buildStatusReport({ testLlm = true } = {}) {
         '*Queue:*',
         queueReport(),
         '',
-        `Backup terakhir: ${lastBackupResult ? `${lastBackupResult.ok ? '✅' : '❌'} ${lastBackupResult.when} ${lastBackupResult.path || lastBackupResult.error || ''}` : 'belum ada'}`,
+        `Backup terakhir: ${backupStatusLine()}`,
         `Error terakhir: ${lastErr ? `${fmtDuration(Date.now() - lastErr.ts)} lalu [${lastErr.source}] ${lastErr.msg.slice(0, 160)}` : 'kosong'}`
     ].join('\n');
+}
+
+function latestBackupOnDisk() {
+    try {
+        const backupDir = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
+        if (!fs.existsSync(backupDir)) return null;
+        const files = fs.readdirSync(backupDir)
+            .filter((f) => /^copux-backup-.*\.tar\.gz(?:\.enc)?$/.test(f))
+            .map((f) => {
+                const file = path.join(backupDir, f);
+                const st = fs.statSync(file);
+                return { file, mtimeMs: st.mtimeMs };
+            })
+            .sort((a, b) => b.mtimeMs - a.mtimeMs);
+        return files[0] || null;
+    } catch (e) {
+        recordError('backup-status', e);
+        return null;
+    }
+}
+
+function backupStatusLine() {
+    if (lastBackupResult) {
+        return `${lastBackupResult.ok ? '✅' : '❌'} ${lastBackupResult.when} ${lastBackupResult.path || lastBackupResult.error || ''}`;
+    }
+    const latest = latestBackupOnDisk();
+    if (!latest) return 'belum ada';
+    return `✅ ${new Date(latest.mtimeMs).toISOString()} ${latest.file}`;
 }
 
 async function runBackupNow(reason = 'manual') {
