@@ -135,11 +135,27 @@ const _BLOCKED_NETS_V4 = [
     /^192\.168\./,
     /^172\.(1[6-9]|2\d|3[01])\./,
     /^169\.254\./,
-    /^0\.0\.0\.0$/,
+    /^0\./,                                       // 0.0.0.0/8 "this-network" (route ke localhost di Linux)
     /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,   // CGNAT 100.64.0.0/10
 ];
-const _BLOCKED_NETS_V6 = [/^::1$/, /^fc/i, /^fd/i, /^fe80:/i];
+const _BLOCKED_NETS_V6 = [/^::1$/, /^::$/, /^fc/i, /^fd/i, /^fe[89ab]/i, /^fe[cdef]/i];  // ::1 loopback, :: unspecified, fc/fd ULA, fe80::/10 link-local, fec0::/10 site-local
 function _isBlockedAddr(address, family) {
+    // IPv4-mapped IPv6 (::ffff:a.b.c.d): di VPS dual-stack ini route ke embedded v4
+    // target (termasuk loopback/metadata 169.254). Eval embedded v4 pakai blocklist v4
+    // — public-mapped (::ffff:8.8.8.8) tetap lolos, private/loopback-mapped diblok.
+    // Dua bentuk: dotted (dari resolusi AAAA) & hex ::ffff:HHHH:HHHH (WHATWG URL
+    // normalize literal [::ffff:1.2.3.4] jadi hex). ffff optional = cover juga
+    // deprecated IPv4-compatible ::a.b.c.d (fail-safe; range ::/96 reserved).
+    if (family === 6) {
+        let m = /^::(?:ffff:)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(address);
+        if (m) return _BLOCKED_NETS_V4.some((r) => r.test(m[1]));
+        m = /^::(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(address);
+        if (m) {
+            const hi = parseInt(m[1], 16), lo = parseInt(m[2], 16);
+            const v4 = `${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`;
+            return _BLOCKED_NETS_V4.some((r) => r.test(v4));
+        }
+    }
     const blocked = family === 4 ? _BLOCKED_NETS_V4 : _BLOCKED_NETS_V6;
     return blocked.some((r) => r.test(address));
 }
