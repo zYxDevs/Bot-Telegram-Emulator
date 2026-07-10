@@ -19,6 +19,7 @@ const os = require('os');
 const crypto = require('crypto');
 const kbRag = require('./modules/kb-rag');
 const webTools = require('./modules/web-tools');
+const kb = require('./modules/kb');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const FREEMODEL_KEY = process.env.FREEMODEL_KEY;
@@ -578,7 +579,7 @@ async function buildStatusReport({ testLlm = true } = {}) {
         queueReport(),
         '',
         `Backup terakhir: ${backupStatusLine()}`,
-        kbRagStatusLine(),
+        kb.kbRagStatusLine(),
         `Error terakhir: ${lastErr ? `${fmtDuration(Date.now() - lastErr.ts)} lalu [${lastErr.source}] ${lastErr.msg.slice(0, 160)}` : 'kosong'}`
     ].join('\n');
 }
@@ -1076,75 +1077,11 @@ const TOOLS = [
 // =============================================================================
 
 const KB_DIR = path.join(DATA_DIR, 'kb');
-let KB_CACHE = null; // [{ file, sections: [{ header, body }] }]
-let KB_RAG_INDEX = null;
+// Fungsi KB retrieval pindah ke modules/kb.js. Inject path resolved (JANGAN
+// biarin modul recompute __dirname) + recordError. KB_DIR tetap di sini krn
+// ADDFIX/community.md di bawah juga pakai.
+kb.init({ KB_DIR, KB_RAG_INDEX_FILE, recordError });
 
-function loadKB() {
-    try {
-        if (!fs.existsSync(KB_DIR)) { KB_CACHE = []; return; }
-        const files = fs.readdirSync(KB_DIR).filter((f) => f.endsWith('.md')).sort();
-        const out = [];
-        for (const f of files) {
-            const raw = fs.readFileSync(path.join(KB_DIR, f), 'utf8');
-            // Split by ## header. Section "" = preamble sebelum header pertama.
-            const parts = raw.split(/^## /m);
-            const sections = [];
-            // parts[0] = preamble (sebelum ## pertama)
-            if (parts[0] && parts[0].trim()) {
-                sections.push({ header: '(intro)', body: parts[0].trim() });
-            }
-            for (let i = 1; i < parts.length; i++) {
-                const seg = parts[i];
-                const nl = seg.indexOf('\n');
-                const header = nl < 0 ? seg.trim() : seg.slice(0, nl).trim();
-                const body = nl < 0 ? '' : seg.slice(nl + 1).trim();
-                sections.push({ header, body });
-            }
-            out.push({ file: f, sections });
-        }
-        KB_CACHE = out;
-    } catch (e) {
-        console.error('KB load error:', e.message);
-        KB_CACHE = [];
-    }
-}
-
-function ensureKbRagIndex({ force = false } = {}) {
-    const res = kbRag.ensureIndex(KB_DIR, KB_RAG_INDEX_FILE, { force });
-    KB_RAG_INDEX = res.index;
-    return res;
-}
-
-function loadKbRagIndex() {
-    if (!KB_RAG_INDEX) {
-        KB_RAG_INDEX = kbRag.loadIndex(KB_RAG_INDEX_FILE);
-    }
-    return KB_RAG_INDEX;
-}
-
-function kbRagStatusLine() {
-    const index = loadKbRagIndex();
-    return kbRag.statusLine(index);
-}
-
-function reindexKbNow() {
-    const t0 = Date.now();
-    KB_CACHE = null;
-    loadKB();
-    const { index, rebuilt } = ensureKbRagIndex({ force: true });
-    const fileCount = Array.isArray(KB_CACHE) ? KB_CACHE.length : 0;
-    const sectionCount = Array.isArray(KB_CACHE) ? KB_CACHE.reduce((s, f) => s + (f.sections?.length || 0), 0) : 0;
-    return {
-        ok: true,
-        rebuilt,
-        ms: Date.now() - t0,
-        fileCount,
-        sectionCount,
-        chunkCount: index.chunkCount,
-        builtAt: index.builtAt,
-        indexFile: KB_RAG_INDEX_FILE
-    };
-}
 
 // =============================================================================
 //  PROMOTEFIX — fix write-only addfix: baca addfix.jsonl → community.md → kb_lookup
@@ -1223,133 +1160,11 @@ function takeAddfixByTs(ts) {
     return removed;
 }
 
-// Confidence tag priority — lower number = higher priority = surfaced FIRST.
-// VERIFIED (community-tested) menang dari REVEALED PREFERENCE (community signal)
-// yang menang dari THEORETICAL (interpolasi spec, belum ke-bench).
-// Section tanpa tag = netral (priority tengah, biar ga tenggelam tapi ga ngalahin VERIFIED).
-function _confidencePriority(text) {
-    const t = (text || '').toUpperCase();
-    if (t.includes('[VERIFIED')) return 0;
-    if (t.includes('[REVEALED PREFERENCE') || t.includes('[REVEALED PREF')) return 1;
-    if (t.includes('[THEORETICAL')) return 3;
-    return 2; // untagged netral
-}
-
-function kbLookup(topic) {
-    if (KB_CACHE == null) loadKB();
-    const q = String(topic || '').toLowerCase().trim();
-    if (!q) return 'kb_lookup: topic kosong. Kasih kata kunci spesifik.';
-
-    const hits = [];
-    for (const file of KB_CACHE) {
-        for (const sec of file.sections) {
-            // Include filename in haystack — bikin topic kayak "box64-fex-presets"
-            // match file box64-fex-presets-ground-truth.md tanpa kudu tambahin
-            // keyword anchor di body file.
-            const hay = (file.file + '\n' + sec.header + '\n' + sec.body).toLowerCase();
-            // Match kalau semua kata di topic ada di section (AND search).
-            const words = q.split(/\s+/).filter(Boolean);
-            const allMatch = words.every((w) => hay.includes(w));
-            if (allMatch) {
-                hits.push({ file: file.file, header: sec.header, body: sec.body });
-            }
-        }
-    }
-    if (!hits.length) {
-        return `kb_lookup: ga ada entry cocok buat "${topic}". Fallback ke web_search.`;
-    }
-    // SORT by confidence tag BEFORE truncation — jangan ngandelin urutan
-    // alfabetis file (evolution-2026.md duluan dari per-game.md = THEORETICAL
-    // bisa hog budget sebelum [VERIFIED] surface). Stable sort: tie-break tetep
-    // urutan asli (alfabetis file → urutan section di file itu).
-    hits.sort((a, b) => {
-        const pa = _confidencePriority(a.header + '\n' + a.body);
-        const pb = _confidencePriority(b.header + '\n' + b.body);
-        return pa - pb;
-    });
-
-    // Limit total ~3KB biar context ga overflow. Hits udah ke-prioritize di atas,
-    // jadi yang ke-potong = THEORETICAL/netral terakhir, bukan [VERIFIED].
-    const MAX = 3200;
-    let out = `# KB hits buat "${topic}" (${hits.length} entry, di-sort by confidence: VERIFIED → REVEALED PREF → netral → THEORETICAL)\n`;
-    for (const h of hits) {
-        const block = `\n## ${h.header}  \n_(file: ${h.file})_\n${h.body}\n`;
-        if (out.length + block.length > MAX) {
-            out += `\n_…dipotong (${hits.length - hits.indexOf(h)} entry lagi, prioritas lebih rendah). Persempit topic biar dapet detail.`;
-            break;
-        }
-        out += block;
-    }
-    return out;
-}
-
-function _kbTokens(s) {
-    const stop = new Set(['yang', 'dan', 'atau', 'buat', 'untuk', 'dengan', 'kalau', 'pake', 'pakai', 'bisa', 'apa', 'gimana', 'kenapa', 'driver', 'versi']);
-    return String(s || '').toLowerCase()
-        .replace(/[^a-z0-9.+_-]+/g, ' ')
-        .split(/\s+/)
-        .filter((w) => w.length >= 2 && !stop.has(w));
-}
-
-function kbSemanticSearch(query) {
-    if (KB_CACHE == null) loadKB();
-    const qTokens = _kbTokens(query);
-    if (!qTokens.length) return 'kb_search: query kosong.';
-    const qSet = new Set(qTokens);
-    const scores = [];
-    for (const file of KB_CACHE || []) {
-        for (const sec of file.sections) {
-            const text = `${file.file}\n${sec.header}\n${sec.body}`;
-            const tokens = _kbTokens(text);
-            if (!tokens.length) continue;
-            const freq = new Map();
-            for (const t of tokens) freq.set(t, (freq.get(t) || 0) + 1);
-            let score = 0;
-            for (const qt of qSet) {
-                if (freq.has(qt)) score += 2 + Math.min(3, freq.get(qt));
-                // fuzzy prefix kecil buat "mediatek"/"mtk", "vkd3d"/"dx12" tetap butuh exact di KB
-                for (const tk of freq.keys()) {
-                    if (tk !== qt && (tk.startsWith(qt) || qt.startsWith(tk)) && Math.min(tk.length, qt.length) >= 4) {
-                        score += 0.5;
-                    }
-                }
-            }
-            if (/mali|mtk|mediatek|driver|dx12|vkd3d|dxvk/.test(String(query).toLowerCase())
-                && /mtk-mali-modern|gpu-rules|vkd3d|evolution/.test(file.file)) score += 2;
-            if (score > 0) scores.push({ score, file: file.file, header: sec.header, body: sec.body });
-        }
-    }
-    scores.sort((a, b) => b.score - a.score || _confidencePriority(a.header + a.body) - _confidencePriority(b.header + b.body));
-    const top = scores.slice(0, 6);
-    if (!top.length) return `kb_search: ga ada section relevan buat "${query}".`;
-    let out = `# KB semantic hits buat "${query}"\n`;
-    for (const h of top) {
-        let body = h.body.replace(/\s+/g, ' ').trim();
-        if (body.length > 650) body = body.slice(0, 650) + ' ...';
-        out += `\n## ${h.header}\n_(file: ${h.file}, score: ${h.score.toFixed(1)})_\n${body}\n`;
-    }
-    return out;
-}
-
-function kbRagSearch(query, topK = 8) {
-    const q = String(query || '').trim();
-    if (!q) return 'kb_rag_search: query kosong.';
-    let res;
-    try {
-        res = ensureKbRagIndex({ force: false });
-    } catch (e) {
-        recordError('kb-rag-index', e);
-        return `kb_rag_search gagal build/load index: ${String(e.message || e).slice(0, 160)}`;
-    }
-    const limit = Math.min(12, Math.max(1, parseInt(topK || '8', 10)));
-    const hits = kbRag.searchIndex(res.index, q, { topK: limit });
-    return kbRag.formatResults(q, hits, res.index);
-}
 
 async function runTool(name, args) {
-    if (name === 'kb_lookup') return kbLookup(String(args.topic || ''));
-    if (name === 'kb_search') return kbSemanticSearch(String(args.query || ''));
-    if (name === 'kb_rag_search') return kbRagSearch(String(args.query || ''), args.top_k || args.topK || 8);
+    if (name === 'kb_lookup') return kb.kbLookup(String(args.topic || ''));
+    if (name === 'kb_search') return kb.kbSemanticSearch(String(args.query || ''));
+    if (name === 'kb_rag_search') return kb.kbRagSearch(String(args.query || ''), args.top_k || args.topK || 8);
     if (name === 'web_search') return await webTools.webSearch(String(args.query || ''));
     if (name === 'web_fetch') return await webTools.webFetch(String(args.url || ''));
     return 'Tool ga dikenal: ' + name;
@@ -1932,12 +1747,12 @@ async function post(p){out.textContent=await (await fetch(p+location.search,{met
             return;
         }
         if (u.pathname === '/api/reloadkb' && req.method === 'POST') {
-            const r = reindexKbNow();
+            const r = kb.reindexKbNow();
             sendHttp(res, 200, `KB reloaded + RAG indexed: ${r.fileCount} file, ${r.sectionCount} section, ${r.chunkCount} chunk (${r.ms}ms)`);
             return;
         }
         if (u.pathname === '/api/reindexkb' && req.method === 'POST') {
-            const r = reindexKbNow();
+            const r = kb.reindexKbNow();
             sendHttp(res, 200, JSON.stringify(r, null, 2), 'application/json');
             return;
         }
@@ -2144,7 +1959,7 @@ bot.on('message', async (msg) => {
     if (cmd === '/reloadkb') {
         if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
         try {
-            const r = reindexKbNow();
+            const r = kb.reindexKbNow();
             sendSafe(chatId, `♻️ KB reloaded + RAG indexed: ${r.fileCount} file, ${r.sectionCount} section, ${r.chunkCount} chunk (${r.ms}ms).`);
         } catch (e) {
             recordError('reloadkb', e);
@@ -2155,7 +1970,7 @@ bot.on('message', async (msg) => {
     if (cmd === '/reindexkb') {
         if (!isAdmin(userId)) { sendSafe(chatId, '🔒 Khusus admin.'); return; }
         try {
-            const r = reindexKbNow();
+            const r = kb.reindexKbNow();
             sendSafe(chatId, `🧠 RAG reindexed: ${r.chunkCount} chunk dari ${r.sectionCount} section / ${r.fileCount} file (${r.ms}ms).\nIndex: \`${r.indexFile}\``);
         } catch (e) {
             recordError('reindexkb', e);
@@ -2198,7 +2013,7 @@ bot.on('message', async (msg) => {
             promoteAddfix(pending);
             // Archive jsonl biar ga double-promote di run berikutnya.
             fs.renameSync(ADDFIX_FILE, ADDFIX_FILE.replace(/\.jsonl$/, `.promoted.${Date.now()}.jsonl`));
-            const r = reindexKbNow();
+            const r = kb.reindexKbNow();
             sendSafe(chatId, `✅ ${pending.length} fix di-promote ke *community.md* + KB/RAG reloaded (${r.chunkCount} chunk). Sekarang kepake di kb_lookup dan kb_rag_search.`);
         } catch (e) {
             console.error('promotefix gagal:', e.message);
@@ -2629,7 +2444,7 @@ bot.on('callback_query', async (q) => {
 
         if (action === 'p') {
             promoteAddfix([entry]);          // sanitizeKbBody jalan di sini (gate anti-injeksi ga berubah).
-            const r = reindexKbNow();        // sync rebuild → langsung kepake kb_lookup/kb_rag.
+            const r = kb.reindexKbNow();        // sync rebuild → langsung kepake kb_lookup/kb_rag.
             await ack('✓ Dipromote');
             await editDone(`✅ DIPROMOTE ke community.md + KB reloaded (${r.chunkCount} chunk).`);
         } else {
