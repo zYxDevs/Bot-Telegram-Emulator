@@ -38,3 +38,9 @@ benchmark_*.py
 *_test.html
 download/
 copux_logs.txt
+
+# AI agent local config (berisi token/allowlist lokal) — JANGAN PERNAH masuk ke repo
+.claude/
+
+# Timestamped backups (mis. bot.js.bak-YYYYMMDD-HHMMSS)
+*.bak-*
