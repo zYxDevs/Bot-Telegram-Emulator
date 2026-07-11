@@ -21,6 +21,7 @@ const kbRag = require('./modules/kb-rag');
 const webTools = require('./modules/web-tools');
 const kb = require('./modules/kb');
 const llmParse = require('./modules/llm-parse');
+const rateLimit = require('./modules/rate-limit');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const FREEMODEL_KEY = process.env.FREEMODEL_KEY;
@@ -212,14 +213,6 @@ function reloadAdminIds() {
 }
 reloadAdminIds();
 
-// Rate limit per-user: cooldown antar pesan + cap window
-const RATE_COOLDOWN_MS = 5 * 1000;          // minimal 5s antar pesan
-const RATE_MAX = 20;                        // dan/atau maks 20 pesan
-const RATE_WINDOW_MS = 60 * 1000;           // per 60s
-const RATE_WARN_COOLDOWN_MS = 5 * 60 * 1000;
-const rateLog = new Map();
-const rateLastAt = new Map();
-const rateWarnedAt = new Map();
 // /opus = model frontier mahal. Limiter khusus (di atas checkRate umum): N per jam per user.
 const OPUS_MAX_PER_HOUR = parseInt(process.env.OPUS_MAX_PER_HOUR || '8', 10);
 const OPUS_WINDOW_MS = 60 * 60 * 1000;
@@ -808,37 +801,6 @@ function sessionKey(msg) {
     return String(chatId);
 }
 
-function checkRate(userId) {
-    if (userId == null) return { ok: true };
-    if (ADMIN_IDS.has(String(userId))) return { ok: true };
-    const now = Date.now();
-
-    // (1) Cooldown antar pesan — minimal 5 detik
-    const last = rateLastAt.get(userId) || 0;
-    const sinceLast = now - last;
-    if (sinceLast < RATE_COOLDOWN_MS) {
-        const lastWarn = rateWarnedAt.get(userId) || 0;
-        const warn = now - lastWarn > RATE_WARN_COOLDOWN_MS;
-        if (warn) rateWarnedAt.set(userId, now);
-        return { ok: false, reason: 'cooldown', waitSec: Math.ceil((RATE_COOLDOWN_MS - sinceLast) / 1000), warn };
-    }
-
-    // (2) Window cap — maks 20 pesan / 60s
-    const arr = (rateLog.get(userId) || []).filter((t) => now - t < RATE_WINDOW_MS);
-    if (arr.length >= RATE_MAX) {
-        rateLog.set(userId, arr);
-        const lastWarn = rateWarnedAt.get(userId) || 0;
-        const warn = now - lastWarn > RATE_WARN_COOLDOWN_MS;
-        if (warn) rateWarnedAt.set(userId, now);
-        return { ok: false, reason: 'window', warn };
-    }
-
-    arr.push(now);
-    rateLog.set(userId, arr);
-    rateLastAt.set(userId, now);
-    return { ok: true };
-}
-
 function friendlyError(e) {
     const status = e.response && e.response.status;
     let body = '';
@@ -855,6 +817,8 @@ function friendlyError(e) {
 }
 
 function isAdmin(userId) { return userId != null && ADMIN_IDS.has(String(userId)); }
+// Wire rate-limit module: inject isAdmin (baca ADMIN_IDS terkini — di-reassign saat /reloadenv).
+rateLimit.init({ isAdmin });
 function displayName(from) {
     if (!from) return 'Anonim';
     const nm = [from.first_name, from.last_name].filter(Boolean).join(' ');
@@ -1570,17 +1534,8 @@ setInterval(() => {
         }
     }
 
-    // Prune rate-limit maps — user yg ga aktif > 10 menit ga perlu di RAM (Termux/ARM).
-    const RATE_IDLE = 10 * 60 * 1000;
-    let rPruned = 0;
-    for (const [uid, t] of rateLastAt) {
-        if (now - t > RATE_IDLE) {
-            rateLastAt.delete(uid);
-            rateLog.delete(uid);
-            rateWarnedAt.delete(uid);
-            rPruned++;
-        }
-    }
+    // Prune rate-limit maps (idle > 10 menit) — logic pindah ke modules/rate-limit.js.
+    const rPruned = rateLimit.pruneIdle(now);
 
     // Prune userStats — drop user yg lastSeen > STATS_TTL (7d).
     let sPruned = 0;
@@ -2023,7 +1978,7 @@ bot.on('message', async (msg) => {
         const q = text.replace(/^\/opus(@\S+)?\s*/i, '').trim();
         if (!q) { sendSafe(chatId, 'Format: `/opus <pertanyaan>` — reasoning mendalam via model frontier.\nContoh: `/opus apa itu DXVK?`'); return; }
         if (q.length > 2000) { sendSafe(chatId, '⚠️ Pertanyaan kepanjangan (maks 2000 char).'); return; }
-        const rate = checkRate(userId);
+        const rate = rateLimit.checkRate(userId);
         if (!rate.ok) { if (rate.warn) sendSafe(chatId, '⏳ Santai bro, jeda bentar ya.'); return; }
         if (!checkOpusBudget(userId)) { sendSafe(chatId, `⏳ Kuota /opus abis (maks ${OPUS_MAX_PER_HOUR}/jam). Model frontier mahal bro, coba lagi nanti atau pakai chat biasa.`); return; }
         if (!OPUS_API_URL || !OPUS_API_KEY || !OPUS_API_MODEL) { sendSafe(chatId, '⚠️ /opus belum dikonfigurasi.'); return; }
@@ -2081,7 +2036,7 @@ bot.on('message', async (msg) => {
     }
 
     // RATE LIMIT
-    const rate = checkRate(userId);
+    const rate = rateLimit.checkRate(userId);
     if (!rate.ok) {
         if (rate.warn) {
             if (rate.reason === 'cooldown') {
