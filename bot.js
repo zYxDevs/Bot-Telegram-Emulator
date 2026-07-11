@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const kbRag = require('./modules/kb-rag');
 const webTools = require('./modules/web-tools');
 const kb = require('./modules/kb');
+const llmParse = require('./modules/llm-parse');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const FREEMODEL_KEY = process.env.FREEMODEL_KEY;
@@ -1281,51 +1282,9 @@ async function askOpus(question) {
         timeout: 120000
     });
     const m = res.data && res.data.choices && res.data.choices[0] && res.data.choices[0].message;
-    return stripThink((m && m.content) || '');
+    return llmParse.stripThink((m && m.content) || '');
 }
 
-function stripThink(text) {
-    return text
-        .replace(/<think>[\s\S]*?<\/think>\s*/gi, '')
-        .replace(/<function\b[\s\S]*?<\/function>\s*/gi, '')
-        .replace(/<tool_call>[\s\S]*?<\/tool_call>\s*/gi, '')
-        .trim();
-}
-
-// Sebagian model di copux-stack (stack multi-model) balikin tool-call sebagai
-// TEKS inline, bukan field structured `m.tool_calls`. Format yang kelihat:
-//   <function>name{json}</function>        (observed di prod)
-//   <function=name>{json}</function>       (gaya Hermes)
-//   <tool_call>{"name":..,"arguments":..}</tool_call>   (gaya Qwen)
-// Tanpa parser ini, blok itu bocor mentah ke user DAN tool-nya ga pernah jalan.
-// Cuma tool yg emang keregistrasi yg dieksekusi (whitelist) — sisanya diabaikan.
-function parseTextToolCalls(text) {
-    if (!text || text.indexOf('<') === -1) return [];
-    const known = new Set(['kb_lookup', 'kb_search', 'kb_rag_search', 'web_search', 'web_fetch']);
-    const calls = [];
-    let mm;
-
-    // 1) <function>name{json}</function>  atau  <function=name>{json}</function>
-    const fnRe = /<function(?:=([a-z_]+))?>\s*([a-z_]+)?\s*(\{[\s\S]*?\})\s*<\/function>/gi;
-    while ((mm = fnRe.exec(text)) !== null) {
-        const name = (mm[1] || mm[2] || '').trim().toLowerCase();
-        if (!known.has(name)) continue;
-        try { calls.push({ name, args: JSON.parse(mm[3]) }); } catch (e) { /* malformed → skip */ }
-    }
-
-    // 2) <tool_call>{"name":..,"arguments":..}</tool_call>
-    const tcRe = /<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/gi;
-    while ((mm = tcRe.exec(text)) !== null) {
-        let obj;
-        try { obj = JSON.parse(mm[1]); } catch (e) { continue; }
-        const name = String(obj.name || '').trim().toLowerCase();
-        if (!known.has(name)) continue;
-        let args = obj.arguments || obj.args || {};
-        if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }
-        calls.push({ name, args });
-    }
-    return calls;
-}
 
 // Model boleh manggil web_search/web_fetch beberapa kali sebelum jawab final.
 // Riwayat tool cuma dipakai sementara (working), ga disimpen ke chatHistory.
@@ -1397,7 +1356,7 @@ async function runAgent(key, images) {
         // FALLBACK: sebagian model copux-stack balikin tool-call sebagai TEKS
         // inline (bukan m.tool_calls). Parse, jalanin tool-nya, jangan bocor.
         if (!lastRound && m.content) {
-            const textCalls = parseTextToolCalls(m.content);
+            const textCalls = llmParse.parseTextToolCalls(m.content);
             if (textCalls.length) {
                 let feedback = '';
                 for (const call of textCalls) {
@@ -1410,7 +1369,7 @@ async function runAgent(key, images) {
             }
         }
         if (m.content && m.content.trim()) {
-            const clean = stripThink(m.content);
+            const clean = llmParse.stripThink(m.content);
             if (clean) return clean;
             // content cuma sisa sintaks tool yg ga keparse → jangan bocorin
             if (lastRound) return '(gw nyoba ngambil data tapi formatnya gagal — coba tanya ulang ya)';
