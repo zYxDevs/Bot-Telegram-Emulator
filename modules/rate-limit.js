@@ -71,4 +71,4 @@ function init(deps) {
     if (deps && deps.isAdmin) isAdmin = deps.isAdmin;
 }
 
-module.exports = { init, checkRate, pruneIdle };
+module.exports = { init, checkRate, pruneIdle, RATE_COOLDOWN_MS, RATE_MAX, RATE_WINDOW_MS };

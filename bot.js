@@ -1710,9 +1710,9 @@ bot.on('message', async (msg) => {
     if (!rate.ok) {
         if (rate.warn) {
             if (rate.reason === 'cooldown') {
-                sendSafe(chatId, `⏳ Santai bro, jeda *${RATE_COOLDOWN_MS / 1000} detik* antar pesan ya. Tunggu ~${rate.waitSec}s lagi.`);
+                sendSafe(chatId, `⏳ Santai bro, jeda *${rateLimit.RATE_COOLDOWN_MS / 1000} detik* antar pesan ya. Tunggu ~${rate.waitSec}s lagi.`);
             } else {
-                sendSafe(chatId, `🚦 Slow down bro, lu udah *${RATE_MAX} pesan* dalam ${RATE_WINDOW_MS / 1000}s. Istirahat dulu ya.`);
+                sendSafe(chatId, `🚦 Slow down bro, lu udah *${rateLimit.RATE_MAX} pesan* dalam ${rateLimit.RATE_WINDOW_MS / 1000}s. Istirahat dulu ya.`);
             }
         }
         return;
