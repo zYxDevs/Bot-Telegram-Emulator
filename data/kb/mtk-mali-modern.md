@@ -1,6 +1,6 @@
 # MediaTek / Mali Modern Driver Gates — DXVK 2.x & VKD3D
 
-Update: 8 Jul 2026.
+Update: 22 Jul 2026.
 
 Tujuan file ini: COPUX jangan lagi jawab "Mali = selalu Sarek" secara buta. Untuk MediaTek/Mali 2026, keputusan DXVK/VKD3D harus driver-gated: GPU model saja tidak cukup.
 
@@ -92,9 +92,32 @@ Secara arsitektur lebih dekat ke DXVK 2.x path, tapi tetap cek driver.
 
 ---
 
+## Mali BCn texture fixes (env-var) — artifact / black screen
+
+**[COMMUNITY SIGNAL]** Mali GPU tidak punya HW decode BCn/BCn-compressed texture (DXT/BC1-7). Efeknya: artifact tekstur, black screen di game yang pakai texture compression. Fix dari thread issue fork Bionic-wrapper + Bannerlator (2026, closed/solved oleh tester) = paksa decode BCn via CPU atau compute shader lewat env-var wrapper.
+
+⚠️ **Dua nama env-var beda, fungsi sama** (dua maintainer nulis sendiri-sendiri) — kalau satu ga jalan, coba variannya:
+
+| Env var | Fungsi | Sumber issue |
+|---|---|---|
+| `USE_CPU_BCN=all` atau `=133,137` | Paksa CPU decode BCn (nilai = format code, `all` = semua) | Bionic-wrapper #113, #92 |
+| `USE_BCN_CPU=all` | Varian nama sama fungsi | Bionic-wrapper #118 |
+| `ENABLE_BCN_COMPUTE=1` | Decode BCn via compute shader (bukan CPU) | Bannerlator #51 |
+| `WRAPPER_EMULATE_BCN=2` | Mode emulasi BCn di wrapper | Bannerlator #51 |
+| `WRAPPER_LOG_LEVEL=trace` | Debug wrapper (diagnosa VUID / copy error) | Bionic-wrapper #164 |
+
+**DXVK version gate Mali-G57 (dari tester):** DXVK `1.10.3` / `1.5.5` sering lebih stabil daripada 2.x di Mali-G57 untuk game tertentu (mis. My Summer Car). Konsisten dengan rule driver-gate di atas: 2.x butuh driver + Vulkan cukup baru.
+
+⚠️ **Caveat:** env-var + nilai di atas di-ekstrak dari komentar issue, bukan dokumentasi resmi wrapper. Verifikasi flag exact di build wrapper yang user pakai (bionic vs bannerlator beda). Ini test-signal, bukan janji.
+
+**BOT RULE:** kalau user Mali laporan "artifact tekstur" / "black screen di game" (bukan crash), sebelum suruh ganti DXVK version, saranin coba `USE_CPU_BCN=all` (bionic) atau `ENABLE_BCN_COMPUTE=1` (bannerlator) dulu — lebih murah dari swap wrapper.
+
+---
+
 ## Failure mapping
 
 - `vkCreateShaderModule failed` di Mali driver `<40` atau Vulkan 1.1/1.2 -> balik ke DXVK-Sarek.
+- Artifact tekstur / black screen di game (bukan crash) di Mali -> coba env-var BCn dulu (`USE_CPU_BCN=all` / `ENABLE_BCN_COMPUTE=1`, lihat section di atas) sebelum swap DXVK version.
 - Black screen setelah splash di DXVK 2.x -> coba Sarek 1.11.1/1.12.0, lalu 1.7.2/1.10.3 kalau game lebih cocok build lama.
 - VKD3D launch lalu crash compile shader -> DX12 path belum cocok; pakai DX11 mode kalau tersedia.
 - OOM / app killed -> jangan langsung naik versi DXVK; turunkan resolusi, VRAM cap, dan coba build yang lebih ringan.
