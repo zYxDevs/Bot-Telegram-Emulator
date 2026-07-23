@@ -116,8 +116,17 @@ Secara arsitektur lebih dekat ke DXVK 2.x path, tapi tetap cek driver.
 
 ## Failure mapping
 
+**[COMMUNITY SIGNAL]** Mali-G615 + DXVK ≥1.7.3: OpSelect shader pattern yang masuk di 1.7.3 trigger bug shader compiler Mali. Fix: gunakan DXVK ≤1.7.2 + disable `VK_EXT_extended_dynamic_state` di settings wrapper (Bionic-wrapper #143, #93).
+
+**[COMMUNITY SIGNAL]** `shader_float_controls` di beberapa build wrapper di-disable khusus Adreno (workaround bug Adreno). Di Mali, extension ini aman dan bisa di-enable ulang kalau wrapper menonaktifkannya secara global (Bionic-wrapper #84).
+
+---
+
+## Failure mapping
+
 - `vkCreateShaderModule failed` di Mali driver `<40` atau Vulkan 1.1/1.2 -> balik ke DXVK-Sarek.
 - Artifact tekstur / black screen di game (bukan crash) di Mali -> coba env-var BCn dulu (`USE_CPU_BCN=all` / `ENABLE_BCN_COMPUTE=1`, lihat section di atas) sebelum swap DXVK version.
+- Crash / glitch di Mali-G615 dengan DXVK 1.7.3+ -> downgrade ke DXVK ≤1.7.2 + disable `VK_EXT_extended_dynamic_state`.
 - Black screen setelah splash di DXVK 2.x -> coba Sarek 1.11.1/1.12.0, lalu 1.7.2/1.10.3 kalau game lebih cocok build lama.
 - VKD3D launch lalu crash compile shader -> DX12 path belum cocok; pakai DX11 mode kalau tersedia.
 - OOM / app killed -> jangan langsung naik versi DXVK; turunkan resolusi, VRAM cap, dan coba build yang lebih ringan.
